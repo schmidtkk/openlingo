@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { memo, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { WordPopover } from "@/components/word/word-popover";
 import { ViewModeToggle, type ViewMode } from "./view-mode-toggle";
@@ -18,7 +18,7 @@ interface TranslatedTextProps {
   isAudioPlaying?: boolean;
 }
 
-function WordSpan({
+const WordSpan = memo(function WordSpan({
   word,
   display,
   language,
@@ -79,7 +79,7 @@ function WordSpan({
       )}
     </>
   );
-}
+});
 
 /** Count words in text using the same splitting as timestamps (\S+) */
 function countWords(text: string): number {
@@ -87,7 +87,7 @@ function countWords(text: string): number {
   return matches ? matches.length : 0;
 }
 
-function ParagraphText({
+const ParagraphText = memo(function ParagraphText({
   text,
   language,
   highlightWordIndex,
@@ -126,9 +126,9 @@ function ParagraphText({
       })}
     </p>
   );
-}
+});
 
-function TranslationChunk({
+const TranslationChunk = memo(function TranslationChunk({
   block,
   language,
   viewMode,
@@ -219,7 +219,7 @@ function TranslationChunk({
       </div>
     </div>
   );
-}
+});
 
 export function TranslatedText({
   blocks,

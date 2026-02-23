@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use, useCallback } from "react";
+import { useState, useEffect, useMemo, use, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { TranslatedText } from "@/components/article/translated-text";
 import { AudioPlayer } from "@/components/article/audio-player";
@@ -210,17 +210,21 @@ export default function ArticleReaderPage({
 
   const isInProgress =
     article.status === "fetching" || article.status === "translating";
-  const blocks: TranslationBlock[] = article.translatedContent
-    ? JSON.parse(article.translatedContent)
-    : [];
+  const blocks: TranslationBlock[] = useMemo(
+    () =>
+      article.translatedContent
+        ? JSON.parse(article.translatedContent)
+        : [],
+    [article.translatedContent],
+  );
 
-  const sourceDomain = (() => {
+  const sourceDomain = useMemo(() => {
     try {
       return new URL(article.sourceUrl).hostname.replace("www.", "");
     } catch {
       return article.sourceUrl;
     }
-  })();
+  }, [article.sourceUrl]);
 
   const cefrColors: Record<string, string> = {
     A1: "bg-lingo-green/20 text-lingo-green",

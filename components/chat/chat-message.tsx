@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { UIMessage } from "@ai-sdk/react";
 import { ChatExercise } from "./chat-exercise";
 import { ChatUnitCard } from "./unit-card";
@@ -21,7 +22,7 @@ interface ChatMessageProps {
   autoplayAudio?: boolean;
 }
 
-export function ChatMessage({
+export const ChatMessage = memo(function ChatMessage({
   message,
   language,
   isLoading,
@@ -179,4 +180,4 @@ export function ChatMessage({
       </div>
     </div>
   );
-}
+});
