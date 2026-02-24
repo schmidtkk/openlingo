@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { StandaloneUnitInfo } from "@/lib/content/types";
@@ -45,6 +45,9 @@ function StandaloneUnitCard({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [activeAction, setActiveAction] = useState<
+    null | "make-public" | "make-private" | "delete" | "remove"
+  >(null);
   const color = getUnitColor(index);
   const progress =
     unit.lessonCount > 0
@@ -65,33 +68,48 @@ function StandaloneUnitCard({
     if (!confirmed) return;
 
     startTransition(async () => {
-      const result = await makeUnitPublic(unit.id);
-      if (result.success) {
-        router.refresh();
-      } else {
-        alert(result.error);
+      setActiveAction("make-public");
+      try {
+        const result = await makeUnitPublic(unit.id);
+        if (result.success) {
+          router.refresh();
+        } else {
+          alert(result.error);
+        }
+      } finally {
+        setActiveAction(null);
       }
     });
   }
 
   function handleMakePrivate() {
     startTransition(async () => {
-      const result = await makeUnitPrivate(unit.id);
-      if (result.success) {
-        router.refresh();
-      } else {
-        alert(result.error);
+      setActiveAction("make-private");
+      try {
+        const result = await makeUnitPrivate(unit.id);
+        if (result.success) {
+          router.refresh();
+        } else {
+          alert(result.error);
+        }
+      } finally {
+        setActiveAction(null);
       }
     });
   }
 
   function handleRemoveFromLibrary() {
     startTransition(async () => {
-      const result = await removeUnitFromLibrary(unit.id);
-      if (result.success) {
-        router.refresh();
-      } else {
-        alert(result.error);
+      setActiveAction("remove");
+      try {
+        const result = await removeUnitFromLibrary(unit.id);
+        if (result.success) {
+          router.refresh();
+        } else {
+          alert(result.error);
+        }
+      } finally {
+        setActiveAction(null);
       }
     });
   }
@@ -104,11 +122,16 @@ function StandaloneUnitCard({
     if (!confirmed) return;
 
     startTransition(async () => {
-      const result = await deleteUnit(unit.id);
-      if (result.success) {
-        router.refresh();
-      } else {
-        alert(result.error);
+      setActiveAction("delete");
+      try {
+        const result = await deleteUnit(unit.id);
+        if (result.success) {
+          router.refresh();
+        } else {
+          alert(result.error);
+        }
+      } finally {
+        setActiveAction(null);
       }
     });
   }
@@ -242,20 +265,29 @@ function StandaloneUnitCard({
                   disabled={isPending}
                   className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-lingo-green hover:bg-lingo-green/10 transition-colors disabled:opacity-50"
                 >
-                  <svg
-                    className="h-3.5 w-3.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"
-                    />
-                  </svg>
-                  Make Public
+                  {isPending && activeAction === "make-public" ? (
+                    <>
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-lingo-green/30 border-t-lingo-green" />
+                      Making Public...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"
+                        />
+                      </svg>
+                      Make Public
+                    </>
+                  )}
                 </button>
               )}
               {!isEditLocked && (
@@ -264,20 +296,29 @@ function StandaloneUnitCard({
                   disabled={isPending}
                   className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
                 >
-                  <svg
-                    className="h-3.5 w-3.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-                    />
-                  </svg>
-                  Delete
+                  {isPending && activeAction === "delete" ? (
+                    <>
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500/30 border-t-red-500" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                        />
+                      </svg>
+                      Delete
+                    </>
+                  )}
                 </button>
               )}
               {/* Owner of public unit, not admin: show read-only indicator */}
@@ -295,20 +336,29 @@ function StandaloneUnitCard({
               disabled={isPending}
               className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
             >
-              <svg
-                className="h-3.5 w-3.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
-                />
-              </svg>
-              Make Private
+              {isPending && activeAction === "make-private" ? (
+                <>
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500/30 border-t-red-500" />
+                  Making Private...
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="h-3.5 w-3.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+                    />
+                  </svg>
+                  Make Private
+                </>
+              )}
             </button>
           )}
           {/* Non-owner library units: Remove button */}
