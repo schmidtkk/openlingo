@@ -55,10 +55,6 @@ Pre-built or AI-generated learning content. Units are stored as markdown with YA
 
 Paste any web article URL and OpenLingo will fetch, extract, and translate it paragraph-by-paragraph to your target language at your CEFR level. Includes optional audio narration.
 
-### Gamification
-
-Daily streaks, lesson completion tracking, and perfect-score badges.
-
 ### Text-to-Speech & Speech-to-Text
 
 - **TTS:** OpenAI GPT-4o-mini-tts for pronunciation and listening exercises
@@ -119,45 +115,6 @@ bun run db:seed      # load dictionaries and sample content
 
 ```bash
 bun run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-## Scripts
-
-| Command                     | Description                      |
-| --------------------------- | -------------------------------- |
-| `bun run dev`               | Start development server         |
-| `bun run build`             | Production build                 |
-| `bun run db:up` / `db:down` | Start/stop PostgreSQL container  |
-| `bun run db:migrate`        | Run database migrations          |
-| `bun run db:seed`           | Seed dictionaries and content    |
-| `bun run db:studio`         | Open Drizzle Studio (DB browser) |
-| `bun run db:reset`          | Nuke and re-seed the database    |
-| `bun run db:generate`       | Generate new migration files     |
-
-### Content Generation
-
-Generate a learning unit from any topic:
-
-```bash
-bun run scripts/generate-unit.ts --provider anthropic --topic "Coffee culture in Italy" --lessons 3
-```
-
-Providers: `anthropic`, `openai`, `google`
-
-## Project Structure
-
-```
-app/                    # Next.js app router
-  (main)/               # Authenticated routes (chat, units, words, read, settings)
-  api/                  # API routes (chat, tts, stt, articles, auth)
-lib/
-  ai/                   # AI abstraction (models, tools, prompts)
-  db/                   # Database schema and connection (Drizzle)
-  actions/              # Server actions (SRS, lessons, auth)
-scripts/                # CLI scripts (seed, migrate, generate-unit)
-content/                # Markdown course content
 ```
 
 ## License
