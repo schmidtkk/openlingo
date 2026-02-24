@@ -170,6 +170,19 @@ function ListeningChoices({
       <h2 className="text-xl font-bold text-lingo-text mb-6">
         What do you hear?
       </h2>
+      {status === "answering" && (
+        <div className="flex justify-center mb-4">
+          <button
+            onClick={() => {
+              checkAnswer(true);
+              onResult(true, "[skipped]");
+            }}
+            className="w-full rounded-xl border-2 border-lingo-blue bg-blue-50 px-4 py-2 text-sm font-bold text-lingo-blue hover:bg-blue-100 transition-all"
+          >
+            Skip, I can&apos;t listen now
+          </button>
+        </div>
+      )}
       <SpeakerButton onSpeak={onSpeak} />
       <AudioSpinner loading={audioLoading} />
       {!played && !audioLoading && (
@@ -202,19 +215,6 @@ function ListeningChoices({
           </button>
         ))}
       </div>
-      {status === "answering" && (
-        <div className="flex justify-center mt-4">
-          <button
-            onClick={() => {
-              checkAnswer(true);
-              onResult(true, "[skipped]");
-            }}
-            className="text-sm text-lingo-text-light hover:text-lingo-text transition-colors"
-          >
-            Skip, I can&apos;t listen now
-          </button>
-        </div>
-      )}
     </ExerciseShell>
   );
 }
@@ -274,6 +274,19 @@ function ListeningTypeAnswer({
       <h2 className="text-xl font-bold text-lingo-text mb-6">
         Type what you hear
       </h2>
+      {status === "answering" && (
+        <div className="flex justify-center mb-4">
+          <button
+            onClick={() => {
+              checkAnswer(true);
+              onResult(true, "[skipped]");
+            }}
+            className="w-full rounded-xl border-2 border-lingo-blue bg-blue-50 px-4 py-2 text-sm font-bold text-lingo-blue hover:bg-blue-100 transition-all"
+          >
+            Skip, I can&apos;t listen now
+          </button>
+        </div>
+      )}
       <SpeakerButton onSpeak={onSpeak} />
       <AudioSpinner loading={audioLoading} />
       {!played && !audioLoading && (
@@ -293,19 +306,6 @@ function ListeningTypeAnswer({
         autoCorrect="off"
         spellCheck={false}
       />
-      {status === "answering" && (
-        <div className="flex justify-center mt-4">
-          <button
-            onClick={() => {
-              checkAnswer(true);
-              onResult(true, "[skipped]");
-            }}
-            className="text-sm text-lingo-text-light hover:text-lingo-text transition-colors"
-          >
-            Skip, I can&apos;t listen now
-          </button>
-        </div>
-      )}
     </ExerciseShell>
   );
 }
@@ -401,6 +401,19 @@ function ListeningWordBank({
       <h2 className="text-xl font-bold text-lingo-text mb-6">
         What do you hear?
       </h2>
+      {status === "answering" && (
+        <div className="flex justify-center mb-4">
+          <button
+            onClick={() => {
+              checkAnswer(true);
+              onResult(true, "[skipped]");
+            }}
+            className="w-full rounded-xl border-2 border-lingo-blue bg-blue-50 px-4 py-2 text-sm font-bold text-lingo-blue hover:bg-blue-100 transition-all"
+          >
+            Skip, I can&apos;t listen now
+          </button>
+        </div>
+      )}
       <SpeakerButton onSpeak={onSpeak} />
       <AudioSpinner loading={audioLoading} />
       {!played && !audioLoading && (
@@ -446,19 +459,6 @@ function ListeningWordBank({
           </button>
         ))}
       </div>
-      {status === "answering" && (
-        <div className="flex justify-center mt-4">
-          <button
-            onClick={() => {
-              checkAnswer(true);
-              onResult(true, "[skipped]");
-            }}
-            className="text-sm text-lingo-text-light hover:text-lingo-text transition-colors"
-          >
-            Skip, I can&apos;t listen now
-          </button>
-        </div>
-      )}
     </ExerciseShell>
   );
 }

@@ -147,6 +147,20 @@ export function Speaking({ exercise, onResult, onContinue, language }: Props) {
         Speak this sentence
       </h2>
 
+      {status === "answering" && (
+        <div className="flex justify-center mb-4">
+          <button
+            onClick={() => {
+              checkAnswer(true);
+              onResult(true, "[skipped]");
+            }}
+            className="w-full rounded-xl border-2 border-lingo-blue bg-blue-50 px-4 py-2 text-sm font-bold text-lingo-blue hover:bg-blue-100 transition-all"
+          >
+            Skip, I can&apos;t speak now
+          </button>
+        </div>
+      )}
+
       {/* Sentence display */}
       <div className="rounded-xl border-2 border-lingo-border bg-white p-4 mb-6">
         {wordResults ? (
@@ -231,19 +245,6 @@ export function Speaking({ exercise, onResult, onContinue, language }: Props) {
         <p className="text-center text-sm text-lingo-red mb-4">{error}</p>
       )}
 
-      {status === "answering" && (
-        <div className="flex justify-center mt-2">
-          <button
-            onClick={() => {
-              checkAnswer(true);
-              onResult(true, "[skipped]");
-            }}
-            className="text-sm text-lingo-text-light hover:text-lingo-text transition-colors"
-          >
-            Skip, I can&apos;t speak now
-          </button>
-        </div>
-      )}
 
     </ExerciseShell>
   );
