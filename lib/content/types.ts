@@ -107,6 +107,8 @@ export interface ListeningExercise {
   text: string;
   ttsLang: string;
   mode?: "choices" | "word-bank";
+  choices?: string[];
+  correctIndex?: number;
   noAudio?: string[];
   srsWords: string | string[];
 }

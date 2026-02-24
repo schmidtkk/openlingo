@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { ListeningExercise } from "@/lib/content/types";
 import { useExercise } from "@/hooks/use-exercise";
 import { useAudio } from "@/hooks/use-audio";
@@ -14,21 +14,6 @@ interface Props {
   onContinue: () => void;
   language: string;
   autoplayAudio?: boolean;
-}
-
-function generateDistractors(text: string): string[] {
-  const words = text.split(/\s+/);
-  if (words.length <= 2) {
-    return [text + "?", text + "!"];
-  }
-  const d1Words = [...words];
-  const mid = Math.floor(d1Words.length / 2);
-  [d1Words[mid - 1], d1Words[mid]] = [d1Words[mid], d1Words[mid - 1]];
-
-  const d2Words = [...words];
-  [d2Words[0], d2Words[d2Words.length - 1]] = [d2Words[d2Words.length - 1], d2Words[0]];
-
-  return [d1Words.join(" "), d2Words.join(" ")];
 }
 
 function shuffleWithSeed<T>(arr: T[], seed: number): T[] {
@@ -90,8 +75,24 @@ export function Listening({ exercise, onResult, onContinue, language, autoplayAu
     );
   }
 
+  if (exercise.mode === "choices") {
+    return (
+      <ListeningChoices
+        exercise={exercise}
+        status={status}
+        checkAnswer={checkAnswer}
+        played={played}
+        onSpeak={speak}
+        onResult={onResult}
+        onContinue={onContinue}
+        language={language}
+        audioLoading={audioLoading}
+      />
+    );
+  }
+
   return (
-    <ListeningChoices
+    <ListeningTypeAnswer
       exercise={exercise}
       status={status}
       checkAnswer={checkAnswer}
@@ -131,17 +132,8 @@ function ListeningChoices({
   audioLoading,
 }: ModeProps) {
   const [selected, setSelected] = useState<number | null>(null);
-
-  const { choices, correctIndex } = useMemo(() => {
-    const distractors = generateDistractors(exercise.text);
-    const all = [exercise.text, ...distractors];
-    const seed = exercise.text.length * 7 + exercise.text.charCodeAt(0);
-    const shuffled = shuffleWithSeed(all, seed);
-    return {
-      choices: shuffled,
-      correctIndex: shuffled.indexOf(exercise.text),
-    };
-  }, [exercise.text]);
+  const choices = exercise.choices!;
+  const correctIndex = exercise.correctIndex!;
 
   function handleCheck() {
     if (selected === null) return;
@@ -172,7 +164,7 @@ function ListeningChoices({
       onCheck={handleCheck}
       onContinue={onContinue}
       canCheck={selected !== null}
-      correctAnswer={exercise.text}
+      correctAnswer={choices[correctIndex]}
       language={language}
     >
       <h2 className="text-xl font-bold text-lingo-text mb-6">
@@ -210,6 +202,84 @@ function ListeningChoices({
           </button>
         ))}
       </div>
+    </ExerciseShell>
+  );
+}
+
+// --- Type-answer mode (default, no mode set) ---
+
+function ListeningTypeAnswer({
+  exercise,
+  status,
+  checkAnswer,
+  played,
+  onSpeak,
+  onResult,
+  onContinue,
+  language,
+  audioLoading,
+}: ModeProps) {
+  const [answer, setAnswer] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (status === "answering") inputRef.current?.focus();
+  }, [status]);
+
+  function handleCheck() {
+    const correct = answer.trim().toLowerCase() === exercise.text.trim().toLowerCase();
+    checkAnswer(correct);
+    onResult(correct, answer.trim());
+  }
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (status !== "answering") return;
+      if (e.key === "Enter" && answer.trim()) {
+        e.preventDefault();
+        handleCheck();
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [status, answer]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
+  return (
+    <ExerciseShell
+      status={status}
+      onCheck={handleCheck}
+      onContinue={onContinue}
+      canCheck={answer.trim().length > 0}
+      correctAnswer={exercise.text}
+      language={language}
+    >
+      <h2 className="text-xl font-bold text-lingo-text mb-6">
+        Type what you hear
+      </h2>
+      <SpeakerButton onSpeak={onSpeak} />
+      <AudioSpinner loading={audioLoading} />
+      {!played && !audioLoading && (
+        <p className="text-center text-sm text-lingo-text-light mb-4">
+          Tap the speaker to hear the phrase
+        </p>
+      )}
+      <input
+        ref={inputRef}
+        type="text"
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        disabled={status !== "answering"}
+        placeholder="Type what you hear..."
+        className="w-full rounded-xl border-2 border-lingo-border bg-white p-4 text-lg font-medium text-lingo-text placeholder:text-lingo-gray-dark focus:border-lingo-blue focus:outline-none disabled:opacity-60"
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+      />
     </ExerciseShell>
   );
 }

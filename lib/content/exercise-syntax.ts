@@ -171,19 +171,34 @@ User matches left-side items to right-side items.
 
 ### listening
 
-User listens to TTS audio and types what they hear.
+User listens to TTS audio and types what they hear. Use \`mode: choices\` for multiple-choice UI or \`mode: word-bank\` for word reconstruction.
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | text | yes | The text that will be spoken |
 | ttsLang | yes | BCP-47 language code for TTS (e.g. \`es-ES\`) |
 | mode | no | \`choices\` or \`word-bank\` for alternate UI |
+| choices (list) | when mode=choices | \`- "text"\` items, one with \`(correct)\` |
 | srsWords | **yes** | Target-language word(s) for SRS |
 
 \`\`\`
 [listening]
 text: "El gato es negro"
 ttsLang: es-ES
+srsWords: "gato" "negro"
+\`\`\`
+
+With \`mode: choices\`, provide a choices list (one marked \`(correct)\`):
+
+\`\`\`
+[listening]
+text: "El gato es negro"
+ttsLang: es-ES
+mode: choices
+choices:
+  - "El gato es negro" (correct)
+  - "El perro es negro"
+  - "El gato es blanco"
 srsWords: "gato" "negro"
 \`\`\`
 

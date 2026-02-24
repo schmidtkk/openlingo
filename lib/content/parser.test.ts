@@ -247,7 +247,7 @@ srsWords: "gato"`;
     });
   });
 
-  test("parses optional mode", () => {
+  test("parses optional mode word-bank", () => {
     const block = `[listening]
 text: "Hola"
 ttsLang: es-ES
@@ -257,6 +257,54 @@ srsWords: "hola"`;
     if (ex.type === "listening") {
       expect(ex.mode).toBe("word-bank");
     }
+  });
+
+  test("parses mode choices with author-provided choices", () => {
+    const block = `[listening]
+text: "El gato es negro"
+ttsLang: es-ES
+mode: choices
+choices:
+  - "El gato es negro" (correct)
+  - "El perro es negro"
+  - "El gato es blanco"
+srsWords: "gato" "negro"`;
+    const ex = parseExercise(block);
+    expect(ex).toEqual({
+      type: "listening",
+      text: "El gato es negro",
+      ttsLang: "es-ES",
+      mode: "choices",
+      choices: ["El gato es negro", "El perro es negro", "El gato es blanco"],
+      correctIndex: 0,
+      srsWords: ["gato", "negro"],
+    });
+  });
+
+  test("parses mode choices with correct marker on non-first choice", () => {
+    const block = `[listening]
+text: "Buenos días"
+ttsLang: es-ES
+mode: choices
+choices:
+  - "Buenas noches"
+  - "Buenos días" (correct)
+  - "Buenas tardes"
+srsWords: "buenos" "días"`;
+    const ex = parseExercise(block);
+    if (ex.type === "listening") {
+      expect(ex.choices).toEqual(["Buenas noches", "Buenos días", "Buenas tardes"]);
+      expect(ex.correctIndex).toBe(1);
+    }
+  });
+
+  test("throws when mode is choices but no choices provided", () => {
+    const block = `[listening]
+text: "El gato es negro"
+ttsLang: es-ES
+mode: choices
+srsWords: "gato"`;
+    expect(() => parseExercise(block)).toThrow("Invalid [listening] exercise");
   });
 });
 

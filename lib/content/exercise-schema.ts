@@ -82,6 +82,18 @@ export const listeningSchema = z.object({
     .enum(["choices", "word-bank"])
     .optional()
     .describe("'choices' for multiple-choice, 'word-bank' for reconstruction"),
+  choices: z
+    .array(z.string())
+    .min(2)
+    .max(4)
+    .optional()
+    .describe("Answer choices when mode is 'choices' (2-4 items)"),
+  correctIndex: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Zero-based index of the correct choice"),
   noAudio,
   srsWords,
 });

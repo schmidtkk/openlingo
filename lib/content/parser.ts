@@ -96,17 +96,29 @@ export function parseExercise(block: string): Exercise {
  */
 function validateExercise(exercise: Exercise): Exercise {
   const result = exerciseSchema.safeParse(exercise);
-  if (result.success) return result.data;
+  if (!result.success) {
+    const issues = result.error.issues.map((issue) => {
+      const path = issue.path.length > 0 ? issue.path.join(".") : "(root)";
+      return `  - ${path}: ${issue.message}`;
+    });
 
-  const issues = result.error.issues.map((issue) => {
-    const path = issue.path.length > 0 ? issue.path.join(".") : "(root)";
-    return `  - ${path}: ${issue.message}`;
-  });
+    throw new Error(
+      `Invalid [${exercise.type}] exercise:\n${issues.join("\n")}\n` +
+      `Parsed data: ${JSON.stringify(exercise, null, 2)}`
+    );
+  }
 
-  throw new Error(
-    `Invalid [${exercise.type}] exercise:\n${issues.join("\n")}\n` +
-    `Parsed data: ${JSON.stringify(exercise, null, 2)}`
-  );
+  // Enforce: listening mode "choices" requires choices + correctIndex
+  if (result.data.type === "listening" && result.data.mode === "choices") {
+    if (!result.data.choices || result.data.correctIndex === undefined) {
+      throw new Error(
+        `Invalid [listening] exercise:\n  - choices: choices and correctIndex are required when mode is 'choices'\n` +
+        `Parsed data: ${JSON.stringify(exercise, null, 2)}`
+      );
+    }
+  }
+
+  return result.data;
 }
 
 const NO_AUDIO_RE = /\s*\[no-audio\]\s*$/;
@@ -241,7 +253,35 @@ function parseListening(lines: string[]): ListeningExercise {
   const ttsLang = getField(lines, "ttsLang");
   const mode = getOptionalField(lines, "mode") as "choices" | "word-bank" | undefined;
   const srsWords = parseSrsWords(lines) ?? "";
-  return { type: "listening", text: rawText.text, ttsLang, srsWords, ...(mode && { mode }), ...(noAudio.length && { noAudio }) };
+
+  // Parse author-provided choices when mode is "choices"
+  let choices: string[] | undefined;
+  let correctIndex: number | undefined;
+  if (mode === "choices") {
+    const srsIdx = lines.findIndex((l) => l.startsWith("srsWords:"));
+    const choiceLines = lines.filter((l, i) => l.startsWith('- "') && (srsIdx === -1 || i < srsIdx));
+    choices = [];
+    correctIndex = 0;
+    choiceLines.forEach((line, i) => {
+      const match = line.match(/^- "(.+?)"\s*(\(correct\))?/);
+      if (match) {
+        const c = stripNoAudio(match[1]);
+        choices!.push(c.text);
+        if (c.flagged) noAudio.push(`choice:${i}`);
+        if (match[2]) correctIndex = i;
+      }
+    });
+  }
+
+  return {
+    type: "listening",
+    text: rawText.text,
+    ttsLang,
+    srsWords,
+    ...(mode && { mode }),
+    ...(choices && { choices, correctIndex }),
+    ...(noAudio.length && { noAudio }),
+  };
 }
 
 function parseSpeaking(lines: string[]): SpeakingExercise {
