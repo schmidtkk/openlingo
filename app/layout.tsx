@@ -14,6 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.openlingo.dev"),
   title: "OpenLingo",
   description: "OpenSource AI connected to language learning",
   manifest: "/manifest.json",

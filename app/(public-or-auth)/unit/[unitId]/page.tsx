@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { getUnitWithContent } from "@/lib/db/queries/courses";
@@ -10,6 +11,45 @@ import { getSession } from "@/lib/auth-server";
 
 interface PageProps {
   params: Promise<{ unitId: string }>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { unitId } = await params;
+  const unit = await getUnitWithContent(unitId);
+
+  if (!unit || unit.visibility !== "public") {
+    return { title: "Unit | OpenLingo" };
+  }
+
+  const lessonCount = unit.lessons.length;
+  const languageName = getLanguageName(unit.targetLanguage);
+  const details = [
+    lessonCount > 0 ? `${lessonCount} ${lessonCount === 1 ? "lesson" : "lessons"}` : null,
+    languageName,
+    unit.level,
+  ].filter(Boolean).join(" · ");
+
+  const description = details
+    ? `${unit.description} — ${details}`
+    : unit.description;
+
+  const title = `${unit.title} | OpenLingo`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      siteName: "OpenLingo",
+    },
+    twitter: {
+      card: "summary",
+      title,
+      description,
+    },
+  };
 }
 
 export default async function StandaloneUnitPage({ params }: PageProps) {
