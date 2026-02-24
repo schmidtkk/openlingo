@@ -1,9 +1,12 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { getUnitWithContent } from "@/lib/db/queries/courses";
 import { getUnitProgress } from "@/lib/actions/progress";
 import { StandaloneUnitPath } from "./standalone-unit-path";
 import { HoverableText } from "@/components/word/hoverable-text";
 import { getLanguageName } from "@/lib/languages";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 interface PageProps {
   params: Promise<{ unitId: string }>;
@@ -18,6 +21,44 @@ export default async function StandaloneUnitPage({ params }: PageProps) {
   // If unit belongs to a course, redirect there
   if (unit.courseId) {
     redirect(`/units/${unit.courseId}?unit=${unitId}`);
+  }
+
+  // Handle unparseable units
+  if (unit.parseError) {
+    const session = await auth.api.getSession({ headers: await headers() });
+    return (
+      <div className="mx-auto max-w-lg">
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl font-black text-lingo-text">{unit.title}</h1>
+        </div>
+        <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-6 text-center">
+          <div className="mb-3 text-3xl">&#9888;&#65039;</div>
+          <h2 className="text-lg font-bold text-red-700 mb-2">
+            Unit can&apos;t be parsed
+          </h2>
+          <p className="text-sm text-red-600 mb-4">
+            This unit&apos;s markdown contains errors and cannot be loaded. The
+            exercises could not be parsed correctly.
+          </p>
+          <div className="flex justify-center gap-3">
+            <Link
+              href="/units"
+              className="rounded-xl border-2 border-lingo-border bg-white px-4 py-2 text-sm font-bold text-lingo-text hover:bg-lingo-gray/30 transition-colors"
+            >
+              Back to Units
+            </Link>
+            {session?.user?.id && (
+              <Link
+                href={`/units/edit/${unitId}`}
+                className="rounded-xl border-2 border-lingo-blue bg-lingo-blue px-4 py-2 text-sm font-bold text-white hover:bg-lingo-blue/90 transition-colors"
+              >
+                Edit Markdown
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const { completions } = await getUnitProgress(unitId);

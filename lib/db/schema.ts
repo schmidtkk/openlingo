@@ -293,6 +293,27 @@ export const unit = pgTable("unit", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// ─── User unit library (public units added by user) ───
+
+export const userUnitLibrary = pgTable(
+  "user_unit_library",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    unitId: text("unit_id")
+      .notNull()
+      .references(() => unit.id, { onDelete: "cascade" }),
+    addedAt: timestamp("added_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("user_unit_library_unique").on(table.userId, table.unitId),
+  ]
+);
+
 // ─── Audio cache (TTS) ───
 
 export const audioCache = pgTable(

@@ -18,6 +18,18 @@ export function getUnitLessons(markdown: string): UnitLesson[] {
   return parseUnitMarkdown(markdown).lessons;
 }
 
+/** Safe version that never throws — returns parseError flag instead. */
+export function getUnitLessonsSafe(markdown: string): {
+  lessons: UnitLesson[];
+  parseError: boolean;
+} {
+  try {
+    return { lessons: parseUnitMarkdown(markdown).lessons, parseError: false };
+  } catch {
+    return { lessons: [], parseError: true };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Content directory scanner
 // ---------------------------------------------------------------------------

@@ -14,6 +14,7 @@ export interface Unit {
   icon: string;
   color: string;
   lessons: UnitLesson[];
+  parseError?: boolean;
 }
 
 /**
@@ -176,6 +177,8 @@ export interface StandaloneUnitInfo {
   visibility: string | null;
   creatorName: string | null;
   isOwner: boolean;
+  isInLibrary?: boolean;
+  parseError?: boolean;
 }
 
 export interface UnitWithContent {
@@ -189,4 +192,5 @@ export interface UnitWithContent {
   level: string | null;
   courseId: string | null;
   lessons: UnitLesson[];
+  parseError?: boolean;
 }

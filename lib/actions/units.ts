@@ -1,11 +1,12 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { unit } from "@/lib/db/schema";
+import { unit, course } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-server";
 import { parseUnitMarkdown } from "@/lib/content/unit-parser";
 import { revalidatePath } from "next/cache";
+import { isAdminEmail } from "@/lib/ai/models";
 
 export async function updateUnitMarkdown(
   unitId: string,
@@ -110,5 +111,133 @@ export async function deleteUnit(
 
   revalidatePath("/units", "page");
 
+  return { success: true };
+}
+
+// ─── Visibility actions ───
+
+export async function makeUnitPublic(
+  unitId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  const session = await requireSession();
+  const userId = session.user.id;
+
+  const [existing] = await db
+    .select({ id: unit.id, createdBy: unit.createdBy, visibility: unit.visibility })
+    .from(unit)
+    .where(eq(unit.id, unitId));
+
+  if (!existing) {
+    return { success: false, error: "Unit not found" };
+  }
+
+  if (existing.createdBy !== userId) {
+    return { success: false, error: "You do not own this unit" };
+  }
+
+  if (existing.visibility === "public") {
+    return { success: false, error: "Unit is already public" };
+  }
+
+  await db
+    .update(unit)
+    .set({ visibility: "public", updatedAt: new Date() })
+    .where(eq(unit.id, unitId));
+
+  revalidatePath("/units", "page");
+  return { success: true };
+}
+
+export async function makeUnitPrivate(
+  unitId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  const session = await requireSession();
+
+  if (!isAdminEmail(session.user.email)) {
+    return { success: false, error: "Only admins can make units private" };
+  }
+
+  const [existing] = await db
+    .select({ id: unit.id, visibility: unit.visibility })
+    .from(unit)
+    .where(eq(unit.id, unitId));
+
+  if (!existing) {
+    return { success: false, error: "Unit not found" };
+  }
+
+  if (existing.visibility !== "public") {
+    return { success: false, error: "Unit is already private" };
+  }
+
+  await db
+    .update(unit)
+    .set({ visibility: null, updatedAt: new Date() })
+    .where(eq(unit.id, unitId));
+
+  revalidatePath("/units", "page");
+  return { success: true };
+}
+
+export async function makeCoursePublic(
+  courseId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  const session = await requireSession();
+  const userId = session.user.id;
+
+  const [existing] = await db
+    .select({ id: course.id, createdBy: course.createdBy, visibility: course.visibility })
+    .from(course)
+    .where(eq(course.id, courseId));
+
+  if (!existing) {
+    return { success: false, error: "Course not found" };
+  }
+
+  if (existing.createdBy !== userId) {
+    return { success: false, error: "You do not own this course" };
+  }
+
+  if (existing.visibility === "public") {
+    return { success: false, error: "Course is already public" };
+  }
+
+  await db
+    .update(course)
+    .set({ visibility: "public", updatedAt: new Date() })
+    .where(eq(course.id, courseId));
+
+  revalidatePath("/units", "page");
+  return { success: true };
+}
+
+export async function makeCoursePrivate(
+  courseId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  const session = await requireSession();
+
+  if (!isAdminEmail(session.user.email)) {
+    return { success: false, error: "Only admins can make courses private" };
+  }
+
+  const [existing] = await db
+    .select({ id: course.id, visibility: course.visibility })
+    .from(course)
+    .where(eq(course.id, courseId));
+
+  if (!existing) {
+    return { success: false, error: "Course not found" };
+  }
+
+  if (existing.visibility !== "public") {
+    return { success: false, error: "Course is already private" };
+  }
+
+  await db
+    .update(course)
+    .set({ visibility: null, updatedAt: new Date() })
+    .where(eq(course.id, courseId));
+
+  revalidatePath("/units", "page");
   return { success: true };
 }

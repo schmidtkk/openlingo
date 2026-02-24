@@ -8,6 +8,7 @@ import {
   exerciseAttempt,
   dailyActivity,
   unit,
+  userUnitLibrary,
 } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-server";
@@ -53,6 +54,8 @@ export async function completeLesson(input: CompleteLessonInput) {
         courseId: unit.courseId,
         markdown: unit.markdown,
         targetLanguage: unit.targetLanguage,
+        visibility: unit.visibility,
+        createdBy: unit.createdBy,
       })
       .from(unit)
       .where(eq(unit.id, input.unitId)),
@@ -121,6 +124,9 @@ export async function completeLesson(input: CompleteLessonInput) {
 
     // Advance enrollment progress (pass unitRow to avoid duplicate fetch)
     advanceEnrollment(userId, input.unitId, input.lessonIndex, unitRow),
+
+    // Auto-add public standalone units to user's library on first practice
+    autoAddToLibrary(userId, unitRow),
   ]);
 
   return { perfectScore };
@@ -233,5 +239,21 @@ async function advanceEnrollment(
     }
     // else: course completed — stays at last unit/lesson
   }
+}
+
+async function autoAddToLibrary(
+  userId: string,
+  unitRow: { id: string; courseId: string | null; visibility: string | null; createdBy: string | null } | undefined
+) {
+  if (!unitRow) return;
+  // Only auto-add standalone (no course), public, non-owned units
+  if (unitRow.courseId) return;
+  if (unitRow.visibility !== "public") return;
+  if (unitRow.createdBy === userId) return;
+
+  await db
+    .insert(userUnitLibrary)
+    .values({ userId, unitId: unitRow.id })
+    .onConflictDoNothing();
 }
 

@@ -5,13 +5,16 @@ import {
   user,
   userCourseEnrollment,
   lessonCompletion,
+  userUnitLibrary,
 } from "@/lib/db/schema";
 import {
   eq,
   and,
   or,
+  ne,
   sql,
   isNull,
+  isNotNull,
   count,
   countDistinct,
   inArray,
@@ -23,7 +26,7 @@ import type {
   StandaloneUnitInfo,
   UnitWithContent,
 } from "@/lib/content/types";
-import { getUnitLessons } from "@/lib/content/loader";
+import { getUnitLessons, getUnitLessonsSafe } from "@/lib/content/loader";
 
 interface CourseFilters {
   sourceLanguage?: string;
@@ -116,7 +119,7 @@ export async function listCoursesWithLessonCounts(
   const lessonCountByCourse = new Map<string, number>();
   for (const u of units) {
     if (!u.courseId) continue;
-    const lessons = getUnitLessons(u.markdown);
+    const { lessons } = getUnitLessonsSafe(u.markdown);
     const prev = lessonCountByCourse.get(u.courseId) ?? 0;
     lessonCountByCourse.set(u.courseId, prev + lessons.length);
   }
@@ -169,14 +172,18 @@ export async function getCourseWithContent(
     sourceLanguage: courseRow.sourceLanguage,
     targetLanguage: courseRow.targetLanguage,
     level: courseRow.level,
-    units: units.map((u) => ({
-      id: u.id,
-      title: u.title,
-      description: u.description,
-      icon: u.icon,
-      color: u.color,
-      lessons: getUnitLessons(u.markdown),
-    })),
+    units: units.map((u) => {
+      const { lessons, parseError } = getUnitLessonsSafe(u.markdown);
+      return {
+        id: u.id,
+        title: u.title,
+        description: u.description,
+        icon: u.icon,
+        color: u.color,
+        lessons,
+        parseError,
+      };
+    }),
   };
 }
 
@@ -277,7 +284,7 @@ export async function getUserEnrolledCourses(
   const lessonCountMap = new Map<string, number>();
   for (const u of allUnits) {
     if (!u.courseId) continue;
-    const lessons = getUnitLessons(u.markdown);
+    const { lessons } = getUnitLessonsSafe(u.markdown);
     lessonCountMap.set(u.courseId, (lessonCountMap.get(u.courseId) ?? 0) + lessons.length);
   }
 
@@ -305,7 +312,24 @@ export async function getUserEnrolledCourses(
 export async function getStandaloneUnits(
   userId: string
 ): Promise<StandaloneUnitInfo[]> {
-  // Fetch units with creator name via left join on user table
+  // Get unit IDs the user has in their library
+  const libraryRows = await db
+    .select({ unitId: userUnitLibrary.unitId })
+    .from(userUnitLibrary)
+    .where(eq(userUnitLibrary.userId, userId));
+
+  const libraryUnitIds = new Set(libraryRows.map((r) => r.unitId));
+
+  // "My Units" = units I created (any visibility) + units in my library
+  // Build the WHERE: courseId IS NULL AND (createdBy = userId OR id IN libraryUnitIds)
+  const libraryCondition =
+    libraryUnitIds.size > 0
+      ? or(
+          eq(unit.createdBy, userId),
+          inArray(unit.id, [...libraryUnitIds])
+        )
+      : eq(unit.createdBy, userId);
+
   const rows = await db
     .select({
       id: unit.id,
@@ -323,12 +347,7 @@ export async function getStandaloneUnits(
     })
     .from(unit)
     .leftJoin(user, eq(unit.createdBy, user.id))
-    .where(
-      and(
-        isNull(unit.courseId),
-        or(eq(unit.createdBy, userId), eq(unit.visibility, "public"))
-      )
-    );
+    .where(and(isNull(unit.courseId), libraryCondition));
 
   if (rows.length === 0) return [];
 
@@ -352,21 +371,93 @@ export async function getStandaloneUnits(
     completionCounts.map((c) => [c.unitId, Number(c.count)])
   );
 
-  return rows.map((u) => ({
-    id: u.id,
-    title: u.title,
-    description: u.description,
-    icon: u.icon,
-    color: u.color,
-    targetLanguage: u.targetLanguage,
-    sourceLanguage: u.sourceLanguage,
-    level: u.level,
-    lessonCount: getUnitLessons(u.markdown).length,
-    completedLessons: completionMap.get(u.id) ?? 0,
-    visibility: u.visibility,
-    creatorName: u.creatorName,
-    isOwner: u.createdBy === userId,
-  }));
+  return rows.map((u) => {
+    const { lessons, parseError } = getUnitLessonsSafe(u.markdown);
+    return {
+      id: u.id,
+      title: u.title,
+      description: u.description,
+      icon: u.icon,
+      color: u.color,
+      targetLanguage: u.targetLanguage,
+      sourceLanguage: u.sourceLanguage,
+      level: u.level,
+      lessonCount: lessons.length,
+      completedLessons: completionMap.get(u.id) ?? 0,
+      visibility: u.visibility,
+      creatorName: u.creatorName,
+      isOwner: u.createdBy === userId,
+      isInLibrary: libraryUnitIds.has(u.id),
+      parseError,
+    };
+  });
+}
+
+/** Public standalone units that the user hasn't added to their library and doesn't own. */
+export async function getBrowsableUnits(
+  userId: string
+): Promise<StandaloneUnitInfo[]> {
+  // Get unit IDs the user has in their library
+  const libraryRows = await db
+    .select({ unitId: userUnitLibrary.unitId })
+    .from(userUnitLibrary)
+    .where(eq(userUnitLibrary.userId, userId));
+
+  const libraryUnitIds = libraryRows.map((r) => r.unitId);
+
+  // Public standalone units that user doesn't own and hasn't added to library
+  const conditions = [
+    isNull(unit.courseId),
+    eq(unit.visibility, "public"),
+    or(ne(unit.createdBy, userId), isNull(unit.createdBy)),
+  ];
+
+  // Exclude units already in library
+  if (libraryUnitIds.length > 0) {
+    conditions.push(sql`${unit.id} NOT IN ${libraryUnitIds}`);
+  }
+
+  const rows = await db
+    .select({
+      id: unit.id,
+      title: unit.title,
+      description: unit.description,
+      icon: unit.icon,
+      color: unit.color,
+      targetLanguage: unit.targetLanguage,
+      sourceLanguage: unit.sourceLanguage,
+      level: unit.level,
+      markdown: unit.markdown,
+      visibility: unit.visibility,
+      createdBy: unit.createdBy,
+      creatorName: user.name,
+    })
+    .from(unit)
+    .leftJoin(user, eq(unit.createdBy, user.id))
+    .where(and(...conditions));
+
+  if (rows.length === 0) return [];
+
+  return rows.map((u) => {
+    const { lessons, parseError } = getUnitLessonsSafe(u.markdown);
+    return {
+      id: u.id,
+      title: u.title,
+      description: u.description,
+      icon: u.icon,
+      color: u.color,
+      targetLanguage: u.targetLanguage,
+      sourceLanguage: u.sourceLanguage,
+      level: u.level,
+      lessonCount: lessons.length,
+      completedLessons: 0,
+      visibility: u.visibility,
+      creatorName: u.creatorName,
+      isOwner: false,
+      isInLibrary: false,
+      parseError,
+    };
+  });
 }
 
 export async function getUnitForEdit(
@@ -398,6 +489,7 @@ export async function getUnitWithContent(
   const [u] = await db.select().from(unit).where(eq(unit.id, unitId));
   if (!u) return null;
 
+  const { lessons, parseError } = getUnitLessonsSafe(u.markdown);
   return {
     id: u.id,
     title: u.title,
@@ -408,6 +500,7 @@ export async function getUnitWithContent(
     sourceLanguage: u.sourceLanguage,
     level: u.level,
     courseId: u.courseId,
-    lessons: getUnitLessons(u.markdown),
+    lessons,
+    parseError,
   };
 }

@@ -6,11 +6,14 @@ import {
   getAvailableFilters,
   getUserEnrolledCourses,
   getStandaloneUnits,
+  getBrowsableUnits,
 } from "@/lib/db/queries/courses";
 import { getNativeLanguage } from "@/lib/actions/profile";
+import { isAdminEmail } from "@/lib/ai/models";
 import { ContinueLearning } from "./continue-learning";
 import { StandaloneUnits } from "./standalone-units";
 import { CourseBrowser } from "./course-browser";
+import { BrowseUnits } from "./browse-units";
 
 const NEW_UNIT_PROMPT = "I want to create a new personalised unit";
 
@@ -18,10 +21,11 @@ const NEW_UNIT_PROMPT = "I want to create a new personalised unit";
 export default async function LearnPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   const userId = session?.user?.id;
+  const isAdmin = isAdminEmail(session?.user?.email);
 
   const nativeLanguage = userId ? await getNativeLanguage(userId) : null;
 
-  const [courses, filters, enrolled, standaloneUnits] = await Promise.all([
+  const [courses, filters, enrolled, standaloneUnits, browsableUnits] = await Promise.all([
     listCoursesWithLessonCounts(
       nativeLanguage ? { sourceLanguage: nativeLanguage } : undefined,
       userId,
@@ -29,9 +33,10 @@ export default async function LearnPage() {
     getAvailableFilters(userId),
     userId ? getUserEnrolledCourses(userId) : Promise.resolve([]),
     userId ? getStandaloneUnits(userId) : Promise.resolve([]),
+    userId ? getBrowsableUnits(userId) : Promise.resolve([]),
   ]);
 
-  if (courses.length === 0 && !nativeLanguage) {
+  if (courses.length === 0 && !nativeLanguage && standaloneUnits.length === 0 && browsableUnits.length === 0) {
     return (
       <div className="mx-auto max-w-2xl text-center py-20">
         <p className="text-lg text-lingo-text-light">
@@ -55,7 +60,8 @@ export default async function LearnPage() {
         </Link>
       </div>
       <ContinueLearning courses={enrolled} />
-      <StandaloneUnits units={standaloneUnits} />
+      <StandaloneUnits units={standaloneUnits} isAdmin={isAdmin} />
+      <BrowseUnits units={browsableUnits} />
       {courses.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-lg text-lingo-text-light mb-2">
