@@ -172,6 +172,8 @@ export async function getCourseWithContent(
     sourceLanguage: courseRow.sourceLanguage,
     targetLanguage: courseRow.targetLanguage,
     level: courseRow.level,
+    visibility: courseRow.visibility,
+    createdBy: courseRow.createdBy,
     units: units.map((u) => {
       const { lessons, parseError } = getUnitLessonsSafe(u.markdown);
       return {
@@ -423,6 +425,8 @@ export async function getUnitWithContent(
     sourceLanguage: u.sourceLanguage,
     level: u.level,
     courseId: u.courseId,
+    visibility: u.visibility,
+    createdBy: u.createdBy,
     lessons,
     parseError,
   };

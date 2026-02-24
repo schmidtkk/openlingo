@@ -4,6 +4,8 @@ export interface Course {
   sourceLanguage: string;
   targetLanguage: string;
   level: string;
+  visibility: string | null;
+  createdBy: string | null;
   units: Unit[];
 }
 
@@ -185,6 +187,8 @@ export interface UnitWithContent {
   sourceLanguage: string | null;
   level: string | null;
   courseId: string | null;
+  visibility: string | null;
+  createdBy: string | null;
   lessons: UnitLesson[];
   parseError?: boolean;
 }

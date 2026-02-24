@@ -1,14 +1,21 @@
+import { redirect, notFound } from "next/navigation";
 import { getUnitWithContent } from "@/lib/db/queries/courses";
-import { notFound, redirect } from "next/navigation";
+import { getSession } from "@/lib/auth-server";
 import { LessonView } from "@/app/(main)/lesson/[courseId]/[unitId]/[lessonIndex]/lesson-view";
 
 interface PageProps {
   params: Promise<{ unitId: string; lessonIndex: string }>;
 }
 
-
 export default async function StandaloneLessonPage({ params }: PageProps) {
   const { unitId, lessonIndex } = await params;
+  const session = await getSession();
+
+  // Lessons require authentication
+  if (!session) {
+    redirect(`/sign-up?redirect=${encodeURIComponent(`/unit/${unitId}/lesson/${lessonIndex}`)}`);
+  }
+
   const unit = await getUnitWithContent(unitId);
   if (!unit) notFound();
 

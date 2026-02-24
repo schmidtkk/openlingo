@@ -3,18 +3,18 @@ import Link from "next/link";
 import { getUnitWithContent } from "@/lib/db/queries/courses";
 import { getUnitProgress } from "@/lib/actions/progress";
 import { StandaloneUnitPath } from "./standalone-unit-path";
+import { PublicUnitPath } from "./public-unit-path";
 import { HoverableText } from "@/components/word/hoverable-text";
 import { getLanguageName } from "@/lib/languages";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSession } from "@/lib/auth-server";
 
 interface PageProps {
   params: Promise<{ unitId: string }>;
 }
 
-
 export default async function StandaloneUnitPage({ params }: PageProps) {
   const { unitId } = await params;
+  const session = await getSession();
   const unit = await getUnitWithContent(unitId);
   if (!unit) notFound();
 
@@ -23,9 +23,20 @@ export default async function StandaloneUnitPage({ params }: PageProps) {
     redirect(`/units/${unit.courseId}?unit=${unitId}`);
   }
 
+  // Visibility check for anonymous users
+  const isPublic = unit.visibility === "public";
+  const isOwner = session?.user?.id === unit.createdBy;
+
+  if (!session && !isPublic) {
+    notFound();
+  }
+
+  if (session && !isPublic && !isOwner) {
+    notFound();
+  }
+
   // Handle unparseable units
   if (unit.parseError) {
-    const session = await auth.api.getSession({ headers: await headers() });
     return (
       <div className="mx-auto max-w-lg">
         <div className="mb-6 text-center">
@@ -61,14 +72,39 @@ export default async function StandaloneUnitPage({ params }: PageProps) {
     );
   }
 
-  const { completions } = await getUnitProgress(unitId);
+  // Authenticated user: show full experience with progress
+  if (session) {
+    let completions: { unitId: string; lessonIndex: number }[] = [];
+    try {
+      const progress = await getUnitProgress(unitId);
+      completions = progress.completions;
+    } catch {
+      // Progress may fail for units not owned by user, that's ok
+    }
 
+    return (
+      <div className="mx-auto max-w-lg">
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl font-black text-lingo-text">
+            <HoverableText text={unit.title} language={unit.targetLanguage} />
+          </h1>
+          {unit.sourceLanguage && (
+            <p className="text-sm text-lingo-text-light mt-1">
+              {getLanguageName(unit.sourceLanguage)} →{" "}
+              {getLanguageName(unit.targetLanguage)}
+            </p>
+          )}
+        </div>
+        <StandaloneUnitPath unit={unit} completions={completions} />
+      </div>
+    );
+  }
+
+  // Anonymous user: show public preview
   return (
     <div className="mx-auto max-w-lg">
       <div className="mb-6 text-center">
-        <h1 className="text-2xl font-black text-lingo-text">
-          <HoverableText text={unit.title} language={unit.targetLanguage} />
-        </h1>
+        <h1 className="text-2xl font-black text-lingo-text">{unit.title}</h1>
         {unit.sourceLanguage && (
           <p className="text-sm text-lingo-text-light mt-1">
             {getLanguageName(unit.sourceLanguage)} →{" "}
@@ -76,7 +112,7 @@ export default async function StandaloneUnitPage({ params }: PageProps) {
           </p>
         )}
       </div>
-      <StandaloneUnitPath unit={unit} completions={completions} />
+      <PublicUnitPath unit={unit} />
     </div>
   );
 }

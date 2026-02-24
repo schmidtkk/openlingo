@@ -9,6 +9,7 @@ import { getLanguageName } from "@/lib/languages";
 import { makeCoursePublic, makeCoursePrivate, deleteCourse } from "@/lib/actions/units";
 import { CreateCourseForm } from "./create-course-form";
 import { CourseManager } from "./course-manager";
+import { CopyLinkButton } from "@/components/ui/copy-link-button";
 
 interface MyCoursesProps {
   courses: OwnedCourseInfo[];
@@ -191,6 +192,7 @@ function OwnedCourseCard({
 
       {/* Actions bar */}
       <div className="border-t border-lingo-border px-4 py-2 flex flex-wrap items-center gap-2">
+        {isPublic && <CopyLinkButton path={`/units/${course.id}`} />}
         {!isLocked && (
           <button
             onClick={onToggleManage}

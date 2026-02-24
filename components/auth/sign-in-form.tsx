@@ -9,13 +9,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { DEFAULT_PATH } from "@/lib/constants";
 
-export function SignInForm() {
+interface SignInFormProps {
+  redirectUrl?: string;
+}
+
+export function SignInForm({ redirectUrl }: SignInFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  const destination = redirectUrl || DEFAULT_PATH;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,7 +34,7 @@ export function SignInForm() {
     if (result.error) {
       setError(result.error.message || "Sign in failed");
     } else {
-      router.push(DEFAULT_PATH);
+      router.push(destination);
     }
   }
 
@@ -37,7 +43,7 @@ export function SignInForm() {
     setGoogleLoading(true);
     await signIn.social({
       provider: "google",
-      callbackURL: DEFAULT_PATH,
+      callbackURL: destination,
     });
   }
 
@@ -86,7 +92,10 @@ export function SignInForm() {
 
       <p className="text-center text-sm text-lingo-text-light">
         Don&apos;t have an account?{" "}
-        <Link href="/sign-up" className="font-bold text-lingo-blue hover:underline">
+        <Link
+          href={redirectUrl ? `/sign-up?redirect=${encodeURIComponent(redirectUrl)}` : "/sign-up"}
+          className="font-bold text-lingo-blue hover:underline"
+        >
           Sign Up
         </Link>
       </p>

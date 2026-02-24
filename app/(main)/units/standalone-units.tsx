@@ -8,6 +8,7 @@ import { getLanguageName } from "@/lib/languages";
 import { getUnitColor } from "@/lib/colors";
 import { makeUnitPublic, makeUnitPrivate, deleteUnit } from "@/lib/actions/units";
 import { removeUnitFromLibrary } from "@/lib/actions/library";
+import { CopyLinkButton } from "@/components/ui/copy-link-button";
 
 interface StandaloneUnitsProps {
   units: StandaloneUnitInfo[];
@@ -235,6 +236,7 @@ function StandaloneUnitCard({
       )}
       {showActions && (
         <div className="border-t border-lingo-border px-4 py-2 flex flex-wrap items-center gap-2">
+          {isPublic && <CopyLinkButton path={`/unit/${unit.id}`} />}
           {unit.isOwner && (
             <>
               {/* Edit Markdown: shown if private, or if admin (even if public) */}
