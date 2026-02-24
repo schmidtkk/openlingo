@@ -35,19 +35,31 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const title = `${unit.title} | OpenLingo`;
 
+  const url = `/unit/${unitId}`;
+
   return {
     title,
     description,
     openGraph: {
       title,
       description,
+      url,
       type: "website",
       siteName: "OpenLingo",
+      images: [
+        {
+          url: `/unit/${unitId}/og-image`,
+          width: 1200,
+          height: 630,
+          alt: unit.title,
+        },
+      ],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title,
       description,
+      images: [`/unit/${unitId}/og-image`],
     },
   };
 }
