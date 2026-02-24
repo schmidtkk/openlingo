@@ -43,7 +43,7 @@ function SpeakerButton({ onSpeak }: { onSpeak: () => void }) {
 }
 
 export function Listening({ exercise, onResult, onContinue, language, autoplayAudio = true }: Props) {
-  const [played, setPlayed] = useState(false);
+  const [played, setPlayed] = useState(autoplayAudio);
   const { status, checkAnswer } = useExercise();
   const { play, stop, loading: audioLoading } = useAudio();
 
@@ -55,9 +55,9 @@ export function Listening({ exercise, onResult, onContinue, language, autoplayAu
   }
 
   useEffect(() => {
-    if (autoplayAudio) speak();
+    if (autoplayAudio && hasAudio) play(exercise.text, language);
     return stop;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autoplayAudio, hasAudio, play, stop, exercise.text, language]);
 
   if (exercise.mode === "word-bank") {
     return (
