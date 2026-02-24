@@ -1,22 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Course } from "@/lib/content/types";
-import { enrollInCourse } from "@/lib/actions/progress";
 import { UnitCard } from "@/components/learning-path/unit-card";
 import { LessonNode } from "@/components/learning-path/lesson-node";
 import { PathConnector } from "@/components/learning-path/path-connector";
-import { Button } from "@/components/ui/button";
 import { getLanguageName } from "@/lib/languages";
 import { getUnitColor } from "@/lib/colors";
 
 interface LearningPathProps {
   course: Course;
-  enrollment: {
-    currentUnitId: string | null;
-    currentLessonIndex: number;
-  } | null;
   completions: {
     unitId: string;
     lessonIndex: number;
@@ -47,38 +41,14 @@ function findFirstIncompleteLesson(
 
 export function LearningPath({
   course,
-  enrollment,
   completions,
 }: LearningPathProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(
     searchParams.get("unit")
   );
 
   const languageLabel = `${getLanguageName(course.sourceLanguage)} → ${getLanguageName(course.targetLanguage)}`;
-
-  if (!enrollment) {
-    return (
-      <div className="flex flex-col items-center py-12">
-        <p className="mb-6 text-lg text-lingo-text-light">
-          Ready to start learning {course.title.split(" ")[0]}?
-        </p>
-        <Button
-          loading={isPending}
-          onClick={() => {
-            startTransition(async () => {
-              await enrollInCourse(course.id);
-              router.refresh();
-            });
-          }}
-        >
-          Start Course
-        </Button>
-      </div>
-    );
-  }
 
   // Unit selector view
   if (selectedUnitId === null) {

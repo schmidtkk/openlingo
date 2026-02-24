@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { userCourseEnrollment, userStats, lessonCompletion, unit } from "@/lib/db/schema";
+import { userStats, lessonCompletion, unit } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-server";
 
@@ -9,17 +9,7 @@ export async function getUserProgress(courseId: string) {
   const session = await requireSession();
   const userId = session.user.id;
 
-  const [enrollment] = await db
-    .select()
-    .from(userCourseEnrollment)
-    .where(
-      and(
-        eq(userCourseEnrollment.userId, userId),
-        eq(userCourseEnrollment.courseId, courseId)
-      )
-    );
-
-  // Get completions via unit join (lessonCompletion now references unitId)
+  // Get completions via unit join (lessonCompletion references unitId)
   const courseUnitIds = await db
     .select({ id: unit.id })
     .from(unit)
@@ -46,55 +36,7 @@ export async function getUserProgress(courseId: string) {
           )
       : [];
 
-  return { enrollment, completions };
-}
-
-export async function enrollInCourse(courseId: string) {
-  const session = await requireSession();
-  const userId = session.user.id;
-
-  // Check if already enrolled
-  const [existing] = await db
-    .select()
-    .from(userCourseEnrollment)
-    .where(
-      and(
-        eq(userCourseEnrollment.userId, userId),
-        eq(userCourseEnrollment.courseId, courseId)
-      )
-    );
-
-  if (existing) return existing;
-
-  // Get the first unit in the course
-  const [firstUnit] = await db
-    .select({ id: unit.id })
-    .from(unit)
-    .where(eq(unit.courseId, courseId))
-    .limit(1);
-
-  // Create enrollment
-  const [enrollment] = await db
-    .insert(userCourseEnrollment)
-    .values({
-      userId,
-      courseId,
-      currentUnitId: firstUnit?.id ?? null,
-      currentLessonIndex: 0,
-    })
-    .returning();
-
-  // Create user stats if not exist
-  const [stats] = await db
-    .select()
-    .from(userStats)
-    .where(eq(userStats.userId, userId));
-
-  if (!stats) {
-    await db.insert(userStats).values({ userId });
-  }
-
-  return enrollment;
+  return { completions };
 }
 
 export async function getUnitProgress(unitId: string) {

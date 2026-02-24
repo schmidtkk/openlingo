@@ -157,12 +157,6 @@ export interface CourseListItem {
   lessonCount: number;
 }
 
-export interface EnrolledCourseInfo extends CourseListItem {
-  currentUnitId: string | null;
-  currentLessonIndex: number;
-  completedLessons: number;
-}
-
 export interface StandaloneUnitInfo {
   id: string;
   title: string;
@@ -203,6 +197,8 @@ export interface OwnedCourseInfo {
   level: string;
   visibility: string | null;
   unitCount: number;
+  lessonCount: number;
+  completedLessons: number;
   createdAt: Date;
 }
 

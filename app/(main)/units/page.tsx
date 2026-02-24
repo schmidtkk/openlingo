@@ -2,12 +2,10 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import {
-  getUserEnrolledCourses,
   getStandaloneUnits,
   getUserOwnedCourses,
 } from "@/lib/db/queries/courses";
 import { isAdminEmail } from "@/lib/ai/models";
-import { ContinueLearning } from "./continue-learning";
 import { StandaloneUnits } from "./standalone-units";
 import { MyCourses } from "./my-courses";
 
@@ -19,8 +17,7 @@ export default async function LearnPage() {
   const userId = session?.user?.id;
   const isAdmin = isAdminEmail(session?.user?.email);
 
-  const [enrolled, standaloneUnits, ownedCourses] = await Promise.all([
-    userId ? getUserEnrolledCourses(userId) : Promise.resolve([]),
+  const [standaloneUnits, ownedCourses] = await Promise.all([
     userId ? getStandaloneUnits(userId) : Promise.resolve([]),
     userId ? getUserOwnedCourses(userId) : Promise.resolve([]),
   ]);
@@ -44,7 +41,6 @@ export default async function LearnPage() {
           Browse
         </Link>
       </div>
-      <ContinueLearning courses={enrolled} />
       <StandaloneUnits units={standaloneUnits} isAdmin={isAdmin} />
       <MyCourses courses={ownedCourses} isAdmin={isAdmin} />
     </div>

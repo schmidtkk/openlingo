@@ -3,7 +3,6 @@ import {
   course,
   unit,
   user,
-  userCourseEnrollment,
   lessonCompletion,
   userUnitLibrary,
 } from "@/lib/db/schema";
@@ -14,7 +13,6 @@ import {
   ne,
   sql,
   isNull,
-  isNotNull,
   count,
   countDistinct,
   inArray,
@@ -22,7 +20,6 @@ import {
 import type {
   Course,
   CourseListItem,
-  EnrolledCourseInfo,
   StandaloneUnitInfo,
   UnitWithContent,
   OwnedCourseInfo,
@@ -214,102 +211,6 @@ export async function getAvailableFilters(userId?: string) {
   const levels = [...new Set(rows.map((r) => r.level))].sort();
 
   return { sourceLanguages, targetLanguages, levels };
-}
-
-export async function getUserEnrolledCourses(
-  userId: string
-): Promise<EnrolledCourseInfo[]> {
-  const enrollments = await db
-    .select({
-      courseId: userCourseEnrollment.courseId,
-      currentUnitId: userCourseEnrollment.currentUnitId,
-      currentLessonIndex: userCourseEnrollment.currentLessonIndex,
-    })
-    .from(userCourseEnrollment)
-    .where(eq(userCourseEnrollment.userId, userId));
-
-  if (enrollments.length === 0) return [];
-
-  const courseIds = enrollments.map((e) => e.courseId);
-
-  // Only count visible units (public OR owned by the user)
-  const unitJoinCondition = and(
-    eq(unit.courseId, course.id),
-    or(eq(unit.visibility, "public"), eq(unit.createdBy, userId))
-  );
-
-  const courses = await db
-    .select({
-      id: course.id,
-      title: course.title,
-      sourceLanguage: course.sourceLanguage,
-      targetLanguage: course.targetLanguage,
-      level: course.level,
-      unitCount: countDistinct(unit.id),
-    })
-    .from(course)
-    .leftJoin(unit, unitJoinCondition)
-    .where(sql`${course.id} IN ${courseIds}`)
-    .groupBy(course.id);
-
-  // Count completed lessons per course via unit join (only visible units)
-  const completionCounts = await db
-    .select({
-      courseId: unit.courseId,
-      count: count(),
-    })
-    .from(lessonCompletion)
-    .innerJoin(unit, eq(unit.id, lessonCompletion.unitId))
-    .where(
-      and(
-        eq(lessonCompletion.userId, userId),
-        sql`${unit.courseId} IN ${courseIds}`,
-        or(eq(unit.visibility, "public"), eq(unit.createdBy, userId))
-      )
-    )
-    .groupBy(unit.courseId);
-
-  const completionMap = new Map(
-    completionCounts.map((c) => [c.courseId, Number(c.count)])
-  );
-
-  // Get lesson counts from markdown (only visible units)
-  const allUnits = await db
-    .select({ id: unit.id, courseId: unit.courseId, markdown: unit.markdown })
-    .from(unit)
-    .where(
-      and(
-        sql`${unit.courseId} IN ${courseIds}`,
-        or(eq(unit.visibility, "public"), eq(unit.createdBy, userId))
-      )
-    );
-
-  const lessonCountMap = new Map<string, number>();
-  for (const u of allUnits) {
-    if (!u.courseId) continue;
-    const { lessons } = getUnitLessonsSafe(u.markdown);
-    lessonCountMap.set(u.courseId, (lessonCountMap.get(u.courseId) ?? 0) + lessons.length);
-  }
-
-  const enrollmentMap = new Map(
-    enrollments.map((e) => [e.courseId, e])
-  );
-
-  return courses.map((c) => {
-    const enrollment = enrollmentMap.get(c.id)!;
-    return {
-      id: c.id,
-      title: c.title,
-      sourceLanguage: c.sourceLanguage,
-      targetLanguage: c.targetLanguage,
-      level: c.level,
-      unitCount: Number(c.unitCount),
-      lessonCount: lessonCountMap.get(c.id) ?? 0,
-      currentUnitId: enrollment.currentUnitId,
-      currentLessonIndex: enrollment.currentLessonIndex,
-      completedLessons: completionMap.get(c.id) ?? 0,
-    };
-  });
 }
 
 export async function getStandaloneUnits(
@@ -549,9 +450,48 @@ export async function getUserOwnedCourses(
     .groupBy(course.id)
     .orderBy(course.createdAt);
 
+  if (rows.length === 0) return [];
+
+  const courseIds = rows.map((r) => r.id);
+
+  // Count completed lessons per course via unit join
+  const completionCounts = await db
+    .select({
+      courseId: unit.courseId,
+      count: count(),
+    })
+    .from(lessonCompletion)
+    .innerJoin(unit, eq(unit.id, lessonCompletion.unitId))
+    .where(
+      and(
+        eq(lessonCompletion.userId, userId),
+        sql`${unit.courseId} IN ${courseIds}`
+      )
+    )
+    .groupBy(unit.courseId);
+
+  const completionMap = new Map(
+    completionCounts.map((c) => [c.courseId, Number(c.count)])
+  );
+
+  // Get lesson counts from markdown
+  const allUnits = await db
+    .select({ id: unit.id, courseId: unit.courseId, markdown: unit.markdown })
+    .from(unit)
+    .where(sql`${unit.courseId} IN ${courseIds}`);
+
+  const lessonCountMap = new Map<string, number>();
+  for (const u of allUnits) {
+    if (!u.courseId) continue;
+    const { lessons } = getUnitLessonsSafe(u.markdown);
+    lessonCountMap.set(u.courseId, (lessonCountMap.get(u.courseId) ?? 0) + lessons.length);
+  }
+
   return rows.map((r) => ({
     ...r,
     unitCount: Number(r.unitCount),
+    lessonCount: lessonCountMap.get(r.id) ?? 0,
+    completedLessons: completionMap.get(r.id) ?? 0,
   }));
 }
 

@@ -34,7 +34,6 @@ export default async function CourseDetailPage({ params }: PageProps) {
       </div>
       <LearningPath
         course={course}
-        enrollment={progress.enrollment}
         completions={progress.completions}
       />
     </div>

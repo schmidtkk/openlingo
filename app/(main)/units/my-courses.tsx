@@ -160,7 +160,31 @@ function OwnedCourseCard({
               <span>
                 {course.unitCount} {course.unitCount === 1 ? "unit" : "units"}
               </span>
+              {course.lessonCount > 0 && (
+                <>
+                  <span>·</span>
+                  <span>
+                    {course.lessonCount} {course.lessonCount === 1 ? "lesson" : "lessons"}
+                  </span>
+                </>
+              )}
             </div>
+            {/* Progress bar */}
+            {course.lessonCount > 0 && (
+              <div className="flex items-center gap-2 mt-2">
+                <div className="h-2 flex-1 rounded-full bg-lingo-gray overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-lingo-blue transition-all duration-500"
+                    style={{
+                      width: `${Math.round((course.completedLessons / course.lessonCount) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <span className="text-xs font-bold text-lingo-blue whitespace-nowrap">
+                  {course.completedLessons}/{course.lessonCount}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </Link>

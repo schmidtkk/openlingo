@@ -3,14 +3,13 @@
 import { db } from "@/lib/db";
 import {
   userStats,
-  userCourseEnrollment,
   lessonCompletion,
   exerciseAttempt,
   dailyActivity,
   unit,
   userUnitLibrary,
 } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-server";
 import { computeStreak } from "@/lib/game/streaks";
 import type { Exercise } from "@/lib/content/types";
@@ -122,9 +121,6 @@ export async function completeLesson(input: CompleteLessonInput) {
         },
       }),
 
-    // Advance enrollment progress (pass unitRow to avoid duplicate fetch)
-    advanceEnrollment(userId, input.unitId, input.lessonIndex, unitRow),
-
     // Auto-add public standalone units to user's library on first practice
     autoAddToLibrary(userId, unitRow),
   ]);
@@ -174,70 +170,6 @@ async function upsertUserStats(userId: string, today: string) {
       lastPracticeDate: today,
       totalLessonsCompleted: totalCompleted,
     });
-  }
-}
-
-async function advanceEnrollment(
-  userId: string,
-  unitId: string,
-  completedLessonIndex: number,
-  unitRow: { id: string; courseId: string | null; markdown: string; targetLanguage: string } | undefined
-) {
-  if (!unitRow || !unitRow.courseId) return;
-
-  const courseId = unitRow.courseId;
-  const lessons = getUnitLessons(unitRow.markdown);
-
-  // Get enrollment
-  const [enrollment] = await db
-    .select()
-    .from(userCourseEnrollment)
-    .where(
-      and(
-        eq(userCourseEnrollment.userId, userId),
-        eq(userCourseEnrollment.courseId, courseId)
-      )
-    );
-
-  if (!enrollment) return;
-
-  // Only advance if user is on this unit and lesson
-  if (
-    enrollment.currentUnitId !== unitId ||
-    enrollment.currentLessonIndex !== completedLessonIndex
-  ) {
-    return;
-  }
-
-  const nextLessonIndex = completedLessonIndex + 1;
-
-  if (nextLessonIndex < lessons.length) {
-    // Move to next lesson in same unit
-    await db
-      .update(userCourseEnrollment)
-      .set({ currentLessonIndex: nextLessonIndex })
-      .where(eq(userCourseEnrollment.id, enrollment.id));
-  } else {
-    // Completed all lessons in this unit — move to next unit
-    const courseUnits = await db
-      .select({ id: unit.id })
-      .from(unit)
-      .where(eq(unit.courseId, courseId))
-      .orderBy(unit.createdAt);
-
-    const currentIdx = courseUnits.findIndex((u) => u.id === unitId);
-    const nextUnit = courseUnits[currentIdx + 1];
-
-    if (nextUnit) {
-      await db
-        .update(userCourseEnrollment)
-        .set({
-          currentUnitId: nextUnit.id,
-          currentLessonIndex: 0,
-        })
-        .where(eq(userCourseEnrollment.id, enrollment.id));
-    }
-    // else: course completed — stays at last unit/lesson
   }
 }
 
