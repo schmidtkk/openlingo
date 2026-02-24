@@ -85,6 +85,7 @@ export async function completeLesson(input: CompleteLessonInput) {
       const lesson = lessons[input.lessonIndex];
       if (lesson) {
         for (const result of input.results) {
+          if (result.userAnswer === "[skipped]") continue;
           const exercise = lesson.exercises[result.exerciseIndex] as Exercise | undefined;
           if (!exercise) continue;
           if (exercise.type === "flashcard-review") continue;

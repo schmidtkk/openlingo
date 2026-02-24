@@ -231,6 +231,20 @@ export function Speaking({ exercise, onResult, onContinue, language }: Props) {
         <p className="text-center text-sm text-lingo-red mb-4">{error}</p>
       )}
 
+      {status === "answering" && (
+        <div className="flex justify-center mt-2">
+          <button
+            onClick={() => {
+              checkAnswer(true);
+              onResult(true, "[skipped]");
+            }}
+            className="text-sm text-lingo-text-light hover:text-lingo-text transition-colors"
+          >
+            Skip, I can&apos;t speak now
+          </button>
+        </div>
+      )}
+
     </ExerciseShell>
   );
 }

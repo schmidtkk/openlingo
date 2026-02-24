@@ -202,6 +202,19 @@ function ListeningChoices({
           </button>
         ))}
       </div>
+      {status === "answering" && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={() => {
+              checkAnswer(true);
+              onResult(true, "[skipped]");
+            }}
+            className="text-sm text-lingo-text-light hover:text-lingo-text transition-colors"
+          >
+            Skip, I can&apos;t listen now
+          </button>
+        </div>
+      )}
     </ExerciseShell>
   );
 }
@@ -280,6 +293,19 @@ function ListeningTypeAnswer({
         autoCorrect="off"
         spellCheck={false}
       />
+      {status === "answering" && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={() => {
+              checkAnswer(true);
+              onResult(true, "[skipped]");
+            }}
+            className="text-sm text-lingo-text-light hover:text-lingo-text transition-colors"
+          >
+            Skip, I can&apos;t listen now
+          </button>
+        </div>
+      )}
     </ExerciseShell>
   );
 }
@@ -420,6 +446,19 @@ function ListeningWordBank({
           </button>
         ))}
       </div>
+      {status === "answering" && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={() => {
+              checkAnswer(true);
+              onResult(true, "[skipped]");
+            }}
+            className="text-sm text-lingo-text-light hover:text-lingo-text transition-colors"
+          >
+            Skip, I can&apos;t listen now
+          </button>
+        </div>
+      )}
     </ExerciseShell>
   );
 }
