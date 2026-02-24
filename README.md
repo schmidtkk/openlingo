@@ -10,6 +10,9 @@ Live version: [https://openlingo.dev](https://openlingo.dev)
 
 Conversational language practice powered by your choice of LLM. The tutor adapts to your level, remembers context across sessions via a persistent memory system, and can generate exercises on the fly.
 
+For example you can ask: `create a unit about the benefits of open source software in spanish A1 level`
+Output: [https://www.openlingo.dev/unit/1ba528d4-b507-4211-9369-03300928fab6](https://www.openlingo.dev/unit/1ba528d4-b507-4211-9369-03300928fab6)
+
 ### AI Tools
 
 The chat tutor has access to tools it can call during conversation:
