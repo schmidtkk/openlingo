@@ -185,6 +185,25 @@ export default function ArticleReaderPage({
     }
   };
 
+  const blocks: TranslationBlock[] = useMemo(() => {
+    try {
+      return article?.translatedContent
+        ? JSON.parse(article.translatedContent)
+        : [];
+    } catch {
+      return [];
+    }
+  }, [article?.translatedContent]);
+
+  const sourceDomain = useMemo(() => {
+    if (!article?.sourceUrl) return "";
+    try {
+      return new URL(article.sourceUrl).hostname.replace("www.", "");
+    } catch {
+      return article.sourceUrl;
+    }
+  }, [article?.sourceUrl]);
+
   if (loading) {
     return (
       <div className="mx-auto max-w-2xl flex justify-center py-20">
@@ -210,21 +229,6 @@ export default function ArticleReaderPage({
 
   const isInProgress =
     article.status === "fetching" || article.status === "translating";
-  const blocks: TranslationBlock[] = useMemo(
-    () =>
-      article.translatedContent
-        ? JSON.parse(article.translatedContent)
-        : [],
-    [article.translatedContent],
-  );
-
-  const sourceDomain = useMemo(() => {
-    try {
-      return new URL(article.sourceUrl).hostname.replace("www.", "");
-    } catch {
-      return article.sourceUrl;
-    }
-  }, [article.sourceUrl]);
 
   const cefrColors: Record<string, string> = {
     A1: "bg-lingo-green/20 text-lingo-green",
