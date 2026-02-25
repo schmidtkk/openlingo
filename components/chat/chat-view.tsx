@@ -114,6 +114,16 @@ export function ChatView({
     }
   }, [messages, isAtBottom, scrollToBottom]);
 
+  // Scroll to bottom when mobile keyboard opens so input stays visible
+  const prevKeyboardOpen = useRef(false);
+  useEffect(() => {
+    if (isKeyboardOpen && !prevKeyboardOpen.current) {
+      // Small delay to let the viewport resize settle
+      setTimeout(() => scrollToBottom(), 100);
+    }
+    prevKeyboardOpen.current = isKeyboardOpen;
+  }, [isKeyboardOpen, scrollToBottom]);
+
   // Auto-send onboarding message for new users (no target language set)
   const onboardingSent = useRef(false);
   useEffect(() => {
@@ -155,21 +165,6 @@ export function ChatView({
   useEffect(() => {
     adjustHeight();
   }, [input, adjustHeight]);
-
-  // Keep the mobile nav in sync with the current draft text on chat pages.
-  useEffect(() => {
-    window.dispatchEvent(
-      new CustomEvent("chat-draft-change", { detail: { text: input } }),
-    );
-  }, [input]);
-
-  useEffect(() => {
-    return () => {
-      window.dispatchEvent(
-        new CustomEvent("chat-draft-change", { detail: { text: "" } }),
-      );
-    };
-  }, []);
 
   function submitForm() {
     if (!input.trim() || isLoading) return;
@@ -216,7 +211,7 @@ export function ChatView({
       <div className="relative flex-1">
         <div
           ref={containerRef}
-          className="absolute inset-0 overflow-y-auto touch-pan-y"
+          className="absolute inset-0 overflow-y-auto overflow-x-hidden touch-pan-y"
         >
           <div className="mx-auto flex min-w-0 max-w-3xl flex-col gap-4 px-2 py-4 md:gap-6 md:px-4">
             {messages.length === 0 && (

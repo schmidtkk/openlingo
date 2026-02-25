@@ -44,6 +44,12 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html,
+body {
+  overflow-x: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   background: var(--lingo-bg);
   color: var(--lingo-text);
