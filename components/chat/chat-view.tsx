@@ -124,15 +124,6 @@ export function ChatView({
     prevKeyboardOpen.current = isKeyboardOpen;
   }, [isKeyboardOpen, scrollToBottom]);
 
-  // Auto-send onboarding message for new users (no target language set)
-  const onboardingSent = useRef(false);
-  useEffect(() => {
-    if (!language && !onboardingSent.current && !initialMessages?.length) {
-      onboardingSent.current = true;
-      sendMessage({ text: "I am a new user, I need onboarding" });
-    }
-  }, [language, initialMessages, sendMessage]);
-
   // Auto-send initial prompt (e.g. from "New Unit" / "New Article" buttons)
   const promptSent = useRef(false);
   useEffect(() => {

@@ -8,7 +8,7 @@ import { updateTargetLanguage } from "@/lib/actions/preferences";
 import { updateNativeLanguage } from "@/lib/actions/profile";
 import { supportedLanguages, getLanguageName } from "@/lib/languages";
 
-const TARGET_LANGUAGES = Object.keys(supportedLanguages).filter((k) => k !== "en");
+const TARGET_LANGUAGES = Object.keys(supportedLanguages);
 
 const NATIVE_LANGUAGES = [
   "en", "es", "fr", "de", "pt", "it", "nl", "ru", "zh", "ja", "ko", "ar",
