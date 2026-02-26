@@ -28,6 +28,16 @@ export default async function ReadPage() {
     .where(eq(article.userId, session.user.id))
     .orderBy(desc(article.createdAt));
 
+  const STALE_FETCHING_MS = 2 * 60 * 1000; // 2 minutes
+  const STALE_TRANSLATING_MS = 5 * 60 * 1000; // 5 minutes
+
+  function isArticleStale(a: { status: string; createdAt: Date }) {
+    if (a.status !== "fetching" && a.status !== "translating") return false;
+    const age = Date.now() - a.createdAt.getTime();
+    if (a.status === "fetching") return age > STALE_FETCHING_MS;
+    return age > STALE_TRANSLATING_MS;
+  }
+
   const cefrColors: Record<string, string> = {
     A1: "bg-lingo-green/20 text-lingo-green",
     A2: "bg-lingo-green/20 text-lingo-green",
@@ -70,13 +80,19 @@ export default async function ReadPage() {
       ) : (
         <div className="space-y-3">
           {articles.map((a) => {
+            const stale = isArticleStale(a);
+            const hasFailed = a.status === "failed" || stale;
             const isInProgress =
-              a.status === "fetching" || a.status === "translating";
+              (a.status === "fetching" || a.status === "translating") && !stale;
             return (
               <Link
                 key={a.id}
                 href={`/read/${a.id}`}
-                className="flex items-start gap-3 rounded-xl border-2 border-lingo-border bg-white p-4 transition-colors hover:border-lingo-blue/30 hover:bg-lingo-blue/5"
+                className={`flex items-start gap-3 rounded-xl border-2 bg-white p-4 transition-colors ${
+                  hasFailed
+                    ? "border-lingo-red/30 hover:border-lingo-red/50 hover:bg-lingo-red/5"
+                    : "border-lingo-border hover:border-lingo-blue/30 hover:bg-lingo-blue/5"
+                }`}
               >
                 <span className="text-2xl shrink-0">📖</span>
                 <div className="min-w-0 flex-1">
@@ -128,9 +144,9 @@ export default async function ReadPage() {
                     </div>
                   )}
 
-                  {a.status === "failed" && (
-                    <p className="text-xs text-lingo-red mt-1">
-                      Translation failed
+                  {hasFailed && (
+                    <p className="text-xs text-lingo-red mt-1.5">
+                      Couldn&apos;t read this article, but other articles should work :)
                     </p>
                   )}
                 </div>
@@ -154,6 +170,21 @@ export default async function ReadPage() {
                   )}
                   {isInProgress && (
                     <span className="h-4 w-4 block animate-spin rounded-full border-2 border-lingo-text-light/30 border-t-lingo-blue" />
+                  )}
+                  {hasFailed && (
+                    <svg
+                      className="h-4 w-4 text-lingo-red"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
                   )}
                 </div>
               </Link>

@@ -18,6 +18,7 @@ export async function GET(
       totalParagraphs: article.totalParagraphs,
       title: article.title,
       errorMessage: article.errorMessage,
+      createdAt: article.createdAt,
     })
     .from(article)
     .where(and(eq(article.id, id), eq(article.userId, session.user.id)))

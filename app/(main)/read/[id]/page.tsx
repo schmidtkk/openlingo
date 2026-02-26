@@ -62,6 +62,22 @@ export default function ArticleReaderPage({
   const [currentAudioTime, setCurrentAudioTime] = useState(0);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
 
+  // Staleness detection: if an article has been "fetching" or "translating"
+  // for too long, the background process likely died (server restart, crash, etc.)
+  const STALE_FETCHING_MS = 2 * 60 * 1000; // 2 minutes
+  const STALE_TRANSLATING_MS = 5 * 60 * 1000; // 5 minutes
+
+  const isStale = useMemo(() => {
+    if (!article) return false;
+    if (article.status !== "fetching" && article.status !== "translating")
+      return false;
+    const age = Date.now() - new Date(article.createdAt).getTime();
+    if (article.status === "fetching") return age > STALE_FETCHING_MS;
+    return age > STALE_TRANSLATING_MS;
+  }, [article?.status, article?.createdAt]);
+
+  const hasFailed = article?.status === "failed" || isStale;
+
   // Fetch article
   useEffect(() => {
     fetch(`/api/articles/${id}`)
@@ -152,10 +168,11 @@ export default function ArticleReaderPage({
     }
   }, [id]);
 
-  // Poll for status if in progress
+  // Poll for status if in progress (stop if stale)
   useEffect(() => {
     if (!article) return;
     if (article.status === "completed" || article.status === "failed") return;
+    if (isStale) return;
 
     const interval = setInterval(async () => {
       try {
@@ -172,7 +189,7 @@ export default function ArticleReaderPage({
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [id, article?.status]);
+  }, [id, article?.status, isStale]);
 
   const handleDelete = async () => {
     if (!confirm("Delete this article?")) return;
@@ -228,7 +245,8 @@ export default function ArticleReaderPage({
   }
 
   const isInProgress =
-    article.status === "fetching" || article.status === "translating";
+    (article.status === "fetching" || article.status === "translating") &&
+    !isStale;
 
   const cefrColors: Record<string, string> = {
     A1: "bg-lingo-green/20 text-lingo-green",
@@ -406,22 +424,42 @@ export default function ArticleReaderPage({
         </div>
       )}
 
-      {/* Error banner */}
-      {article.status === "failed" && (
-        <div className="rounded-xl border-2 border-lingo-red/20 bg-red-50 p-4 mb-6">
+      {/* Failed / stale error state */}
+      {hasFailed && (
+        <div className="rounded-xl border-2 border-lingo-red/20 bg-lingo-red/5 p-6 mb-6 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-lingo-red/10">
+            <svg
+              className="h-6 w-6 text-lingo-red"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
           <p className="text-sm font-bold text-lingo-red mb-1">
-            Translation failed
+            Couldn&apos;t read this article, but other articles should work :)
           </p>
-          {article.errorMessage && (
-            <p className="text-xs text-lingo-red/80">
-              {article.errorMessage}
-            </p>
-          )}
+          <p className="text-xs text-lingo-red/60 mb-4">
+            Something went wrong while processing this one. Try a different article or a different source.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push("/read")}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-lingo-red px-4 py-2 text-sm font-bold text-white shadow-[0_3px_0_0] shadow-lingo-red-dark active:translate-y-[1px] active:shadow-[0_2px_0_0] active:shadow-lingo-red-dark transition-all"
+          >
+            Back to articles
+          </button>
         </div>
       )}
 
       {/* Article content */}
-      {blocks.length > 0 && (
+      {blocks.length > 0 && !hasFailed && (
         <TranslatedText
           blocks={blocks}
           targetLanguage={article.targetLanguage}
@@ -432,7 +470,7 @@ export default function ArticleReaderPage({
       )}
 
       {/* Empty state for articles with no content yet */}
-      {blocks.length === 0 && !isInProgress && article.status !== "failed" && (
+      {blocks.length === 0 && !isInProgress && !hasFailed && (
         <div className="text-center py-12 text-lingo-text-light">
           No content available yet.
         </div>
