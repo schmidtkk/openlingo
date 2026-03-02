@@ -6,3 +6,5 @@ PI pattern:
 
 1. Deeply research the codebase based on what the user asked you. Go deep into functions and code, analyse everything in great details going through everything and understanding the intricacies. Once you have all the information, write the implementation plan at a file called `plan.md`. This should include relevant information discovered during research, design decisions taken and edge cases or other things we should pay close attention to. Include a todo list at the end that describes step by step how you are going to perform this. After this, ask the user for review. Do not implement yet.
 2. Once you get approval from the user, implement everything following `plan.md`, do not ask for user input anymore.
+
+This project uses bun, use bun for everything. bun run, bun run build, bun install etc (don't use npm)
