@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
-npx -y expect-cli@latest init
+if ! npx -y expect-cli@latest init; then
+  echo "Warning: failed to install or initialize expect-cli; continuing anyway." >&2
+fi
+
+exit 0
