@@ -10,7 +10,10 @@ import {
   langCodeToName,
 } from "@/lib/prompts";
 
-const openai = new OpenAI();
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: process.env.OPENAI_BASE_URL,
+});
 
 export async function generateSpeech(
   text: string,
