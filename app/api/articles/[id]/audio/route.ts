@@ -11,10 +11,7 @@ import {
   type WhisperWord,
 } from "@/lib/audio/align-timestamps";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 interface TranslationBlock {
   original: string;
@@ -122,11 +119,13 @@ async function generateAudioInBackground(
       };
 
       if (verboseResponse.words && verboseResponse.words.length > 0) {
-        const whisperWords: WhisperWord[] = verboseResponse.words.map((w) => ({
-          word: w.word,
-          start: w.start,
-          end: w.end,
-        }));
+        const whisperWords: WhisperWord[] = verboseResponse.words.map(
+          (w) => ({
+            word: w.word,
+            start: w.start,
+            end: w.end,
+          }),
+        );
 
         const aligned = alignWordsToOriginal(translatedText, whisperWords);
         audioTimestamps = JSON.stringify(aligned);
@@ -212,7 +211,9 @@ export async function POST(
     id,
     row.translatedContent,
     row.targetLanguage,
-  ).catch((err) => console.error(`[Audio] Unhandled error for ${id}:`, err));
+  ).catch((err) =>
+    console.error(`[Audio] Unhandled error for ${id}:`, err),
+  );
 
   return NextResponse.json({ status: "generating" });
 }
