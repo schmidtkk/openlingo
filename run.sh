@@ -7,12 +7,14 @@ PGDATA=/data/weidong/OpenLingo/.pgdata
 PGPORT=5437
 PGUSER=lingo
 export PGPASSWORD=lingo_local_dev
-PORT=3002
+PORT="${PORT:-3003}"
 TTS_SCRIPT=/data/weidong/TTS/tts_exploration/start_tts_server.sh
 TTS_PID=
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
+
+source "$DIR/scripts/run-sh-port.sh"
 
 read_env_value() {
   local key="$1"
@@ -117,5 +119,10 @@ echo "Running migrations..."
 $BUN run db:migrate
 
 # Start dev server
+REQUESTED_PORT="$PORT"
+PORT="$(find_available_port "$REQUESTED_PORT")"
+if [ "$PORT" != "$REQUESTED_PORT" ]; then
+  echo "Port $REQUESTED_PORT is in use; using http://localhost:$PORT instead."
+fi
 echo "Starting OpenLingo on http://localhost:$PORT"
 PORT=$PORT $BUN run dev
