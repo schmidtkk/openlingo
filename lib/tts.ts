@@ -12,9 +12,12 @@ import {
   langCodeToName,
 } from "@/lib/prompts";
 import {
+  buildLocalAudioCacheEntry,
   buildTTSCacheKey,
   buildTTSClientCacheKey,
   buildTTSProfileTag,
+  resolveOpenAITTSVoice,
+  resolveTTSLanguageCode,
   resolveTTSVoice,
 } from "@/lib/tts-voice";
 
@@ -40,28 +43,8 @@ function buildClient(baseUrl: string, model: string, voice: string): TTSClient {
   return { client, model, voice, supportsInstructions: false };
 }
 
-/** CJK ratio heuristic — returns 'zh' if >30% of chars are CJK, else 'en'. */
-function detectLanguage(text: string): "zh" | "en" {
-  let cjk = 0;
-  let total = 0;
-  for (const c of text) {
-    if (c !== " ") {
-      total++;
-      if (c >= "一" && c <= "鿿") cjk++;
-    }
-  }
-  return cjk > total * 0.3 ? "zh" : "en";
-}
-
 function _getLangCode(language: string, text?: string): string {
-  // Map OpenLingo language codes to simple routing codes
-  const lang = language.toLowerCase();
-  if (lang === "zh" || lang === "chinese") return "zh";
-  if (lang === "fr" || lang === "french") return "fr";
-  if (lang === "en" || lang === "english") return "en";
-  // Detect from text for non-English/French (Japanese, Korean, etc.)
-  if (text) return detectLanguage(text);
-  return "en";
+  return resolveTTSLanguageCode(language, text);
 }
 
 /**
@@ -120,7 +103,7 @@ export function getTTSClientForLanguage(
   }
 
   // OpenAI cloud TTS
-  const voice = resolveTTSVoice(preferredVoice, undefined, "coral");
+  const voice = resolveOpenAITTSVoice(preferredVoice);
   return {
     client: openai,
     model: "gpt-4o-mini-tts",
@@ -148,7 +131,7 @@ export function getTTSClient(preferredVoice?: string): TTSClient {
       supportsInstructions: false,
     };
   }
-  const voice = resolveTTSVoice(preferredVoice, undefined, "coral");
+  const voice = resolveOpenAITTSVoice(preferredVoice);
   return {
     client: openai,
     model: "gpt-4o-mini-tts",
@@ -194,10 +177,15 @@ async function storeAudio(
   buffer: Buffer,
 ): Promise<string> {
   if (useLocalStorage) {
-    const dir = path.join(process.cwd(), ".audio-cache", language);
+    const entry = buildLocalAudioCacheEntry(
+      path.join(process.cwd(), ".audio-cache"),
+      language,
+      hash,
+    );
+    const dir = path.dirname(entry.filePath);
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, `${hash}.mp3`), buffer);
-    return `local/${language}/${hash}.mp3`;
+    await fs.writeFile(entry.filePath, buffer);
+    return entry.publicKey;
   }
   const key = `audio/${language}/${hash}.mp3`;
   await uploadAudio(key, buffer);
@@ -215,9 +203,10 @@ export async function generateSpeech(
   preferredVoice?: string,
 ): Promise<string> {
   const normalized = text.toLowerCase();
-  const profile = ttsProfileTag(language, normalized, preferredVoice);
+  const languageCode = resolveTTSLanguageCode(language, normalized);
+  const profile = ttsProfileTag(languageCode, normalized, preferredVoice);
   const cacheKey = buildTTSCacheKey(profile, normalized);
-  const dedupKey = `${language}:${cacheKey}`;
+  const dedupKey = `${languageCode}:${cacheKey}`;
 
   const existing = inflight.get(dedupKey);
   if (existing) return existing;
@@ -227,27 +216,27 @@ export async function generateSpeech(
       .select()
       .from(audioCache)
       .where(
-        and(eq(audioCache.text, cacheKey), eq(audioCache.language, language)),
+        and(eq(audioCache.text, cacheKey), eq(audioCache.language, languageCode)),
       )
       .limit(1);
     if (cached.length > 0) return getPublicUrl(cached[0].r2Key);
 
-    const target_language = langCodeToName[language] || "the target language";
+    const target_language = langCodeToName[languageCode] || "the target language";
     const ttsTemplate = getDefaultTemplate("tts-instructions");
     const instructions = interpolateTemplate(ttsTemplate, { target_language });
 
     const buffer = await generateAudioBuffer(
       normalized,
       instructions,
-      language,
+      languageCode,
       preferredVoice,
     );
     const hash = createHash("md5").update(cacheKey).digest("hex");
-    const r2Key = await storeAudio(hash, language, buffer);
+    const r2Key = await storeAudio(hash, languageCode, buffer);
 
     await db
       .insert(audioCache)
-      .values({ text: cacheKey, language, r2Key })
+      .values({ text: cacheKey, language: languageCode, r2Key })
       .onConflictDoNothing();
 
     return getPublicUrl(r2Key);

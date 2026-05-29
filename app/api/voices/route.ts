@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { normalizeVoiceId } from "@/lib/tts-voice";
+import {
+  normalizeVoiceId,
+  OPENAI_TTS_VOICE_OPTIONS,
+  resolveOpenAITTSVoice,
+} from "@/lib/tts-voice";
 
 export const dynamic = "force-dynamic";
 
@@ -147,6 +151,14 @@ async function fetchLocalVoices(): Promise<{
 }
 
 export async function GET(request: NextRequest) {
+  if (!process.env.LOCAL_TTS_URL) {
+    return NextResponse.json({
+      model: "gpt-4o-mini-tts",
+      defaultVoice: resolveOpenAITTSVoice(process.env.LOCAL_TTS_VOICE),
+      voices: OPENAI_TTS_VOICE_OPTIONS,
+    });
+  }
+
   const modelParam = request.nextUrl.searchParams.get("model");
   const envModel = process.env.LOCAL_TTS_MODEL ?? "chatterbox";
   const requestedModel =

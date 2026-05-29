@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { generateSpeech } from "@/lib/tts";
-import { normalizeVoiceId } from "@/lib/tts-voice";
+import { normalizeVoiceId, resolveTTSLanguageCode } from "@/lib/tts-voice";
 import { getAudio } from "@/lib/r2";
 
 const AUDIO_CACHE_ROOT = path.join(process.cwd(), ".audio-cache");
@@ -75,9 +75,10 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+  const ttsLanguage = resolveTTSLanguageCode(language, text);
 
   try {
-    const url = await generateSpeech(text, language, preferredVoice);
+    const url = await generateSpeech(text, ttsLanguage, preferredVoice);
     return NextResponse.json({ url });
   } catch (err) {
     const message = err instanceof Error ? err.message : "TTS generation failed";
