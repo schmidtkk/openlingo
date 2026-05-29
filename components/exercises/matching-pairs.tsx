@@ -38,10 +38,10 @@ export function MatchingPairs({ exercise, onResult, onContinue, language }: Prop
     prefetch(leftItems, language);
   }, [prefetch, leftItems, language]);
 
-  useEffect(() => {
-    if (selectedLeft && selectedRight) {
+  const resolvePair = useCallback(
+    (left: string, right: string) => {
       const pair = exercise.pairs.find(
-        (p) => p.left === selectedLeft && p.right === selectedRight
+        (p) => p.left === left && p.right === right,
       );
 
       if (pair) {
@@ -49,15 +49,36 @@ export function MatchingPairs({ exercise, onResult, onContinue, language }: Prop
         setSelectedLeft(null);
         setSelectedRight(null);
       } else {
-        setWrong({ left: selectedLeft, right: selectedRight });
+        setWrong({ left, right });
         setTimeout(() => {
           setWrong(null);
           setSelectedLeft(null);
           setSelectedRight(null);
         }, 500);
       }
-    }
-  }, [selectedLeft, selectedRight, exercise.pairs]);
+    },
+    [exercise.pairs],
+  );
+
+  const selectLeft = useCallback(
+    (item: string) => {
+      if (matched.has(item)) return;
+      setWrong(null);
+      setSelectedLeft(item);
+      if (selectedRight) resolvePair(item, selectedRight);
+    },
+    [matched, resolvePair, selectedRight],
+  );
+
+  const selectRight = useCallback(
+    (item: string) => {
+      if (matched.has(item)) return;
+      setWrong(null);
+      setSelectedRight(item);
+      if (selectedLeft) resolvePair(selectedLeft, item);
+    },
+    [matched, resolvePair, selectedLeft],
+  );
 
   const allMatched = matched.size === exercise.pairs.length * 2;
 
@@ -75,13 +96,13 @@ export function MatchingPairs({ exercise, onResult, onContinue, language }: Prop
       const num = parseInt(e.key, 10);
       if (num >= 1 && num <= leftItems.length) {
         const item = leftItems[num - 1];
-        if (!matched.has(item)) setSelectedLeft(item);
+        selectLeft(item);
       } else if (num >= 5 && num <= 4 + rightItems.length) {
         const item = rightItems[num - 5];
-        if (!matched.has(item)) setSelectedRight(item);
+        selectRight(item);
       }
     },
-    [status, leftItems, rightItems, matched]
+    [status, leftItems, rightItems, selectLeft, selectRight],
   );
 
   useEffect(() => {
@@ -107,7 +128,10 @@ export function MatchingPairs({ exercise, onResult, onContinue, language }: Prop
             <button
               key={item}
               disabled={matched.has(item) || status !== "answering"}
-              onClick={() => { setSelectedLeft(item); play(item, language); }}
+              onClick={() => {
+                selectLeft(item);
+                play(item, language);
+              }}
               className={`w-full rounded-xl border-2 p-3 text-center font-bold transition-all ${
                 matched.has(item)
                   ? "border-lingo-green bg-green-50 text-lingo-green opacity-60"
@@ -130,7 +154,7 @@ export function MatchingPairs({ exercise, onResult, onContinue, language }: Prop
             <button
               key={item}
               disabled={matched.has(item) || status !== "answering"}
-              onClick={() => setSelectedRight(item)}
+              onClick={() => selectRight(item)}
               className={`w-full rounded-xl border-2 p-3 text-center font-bold transition-all ${
                 matched.has(item)
                   ? "border-lingo-green bg-green-50 text-lingo-green opacity-60"

@@ -37,14 +37,25 @@ export async function GET(
     );
   }
 
-  let timestamps: WordTimestamp[];
+  let timestamps: WordTimestamp[] | undefined;
   try {
-    timestamps = JSON.parse(row.audioTimestamps);
+    const parsed = JSON.parse(row.audioTimestamps);
+    if (Array.isArray(parsed)) {
+      timestamps = parsed as WordTimestamp[];
+    } else if (parsed && Array.isArray(parsed.words)) {
+      timestamps = parsed.words as WordTimestamp[];
+    }
   } catch {
     return NextResponse.json(
       { error: "Invalid timestamp data" },
       { status: 500 },
     );
+  }
+
+  if (!timestamps || timestamps.length === 0) {
+    // Audio exists but was generated without word-level alignment
+    // (local TTS path). Reader falls back to plain playback.
+    return NextResponse.json({ error: "No timestamps available" }, { status: 404 });
   }
 
   return NextResponse.json({ timestamps });

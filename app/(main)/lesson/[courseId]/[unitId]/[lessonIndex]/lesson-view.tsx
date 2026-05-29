@@ -39,7 +39,7 @@ export function LessonView({
   targetLanguage,
 }: LessonViewProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [showComplete, setShowComplete] = useState(false);
   const [lessonResult, setLessonResult] = useState<{
     perfectScore: boolean;
@@ -89,7 +89,15 @@ export function LessonView({
         setShowComplete(true);
       });
     }
-  }, [isComplete]);
+  }, [
+    isComplete,
+    lessonIndex,
+    mistakeCount,
+    results,
+    showComplete,
+    startTransition,
+    unitId,
+  ]);
 
   if (showComplete && lessonResult) {
     return (

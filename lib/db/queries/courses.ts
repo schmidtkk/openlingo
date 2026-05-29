@@ -26,7 +26,7 @@ import type {
   CourseManagementInfo,
   AvailableUnitForCourse,
 } from "@/lib/content/types";
-import { getUnitLessons, getUnitLessonsSafe } from "@/lib/content/loader";
+import { getUnitLessonsSafe } from "@/lib/content/loader";
 
 interface CourseFilters {
   sourceLanguage?: string;

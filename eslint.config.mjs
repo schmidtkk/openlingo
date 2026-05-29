@@ -12,6 +12,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "refactor_cloudflare/**",
+    "refactor_rust/**",
+    ".logs/**",
+    ".pgdata/**",
+    ".playwright-mcp/**",
+    ".claude/**",
+    ".codex/**",
+    ".socrates/**",
   ]),
 ]);
 

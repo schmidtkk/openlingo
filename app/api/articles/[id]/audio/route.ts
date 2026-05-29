@@ -1,37 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
-import { toFile } from "openai/uploads";
+import { createHash } from "crypto";
+import { promises as fs } from "fs";
+import path from "path";
 import { requireSession } from "@/lib/auth-server";
 import { db } from "@/lib/db";
 import { article } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { uploadAudio, getPublicUrl } from "@/lib/r2";
-import {
-  alignWordsToOriginal,
-  type WhisperWord,
-} from "@/lib/audio/align-timestamps";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { generateAudioBuffer, getTTSClient, ttsProfileTag } from "@/lib/tts";
 
 interface TranslationBlock {
   original: string;
   translated: string;
 }
 
-const TTS_INSTRUCTIONS: Record<string, string> = {
-  German:
-    "Speak in German with clear, native German pronunciation. Use a calm, measured pace suitable for language learners. Enunciate clearly and naturally.",
-  Spanish:
-    "Speak in Spanish with clear, native Spanish pronunciation. Use a calm, measured pace suitable for language learners. Enunciate clearly and naturally.",
-  French:
-    "Speak in French with clear, native French pronunciation. Use a calm, measured pace suitable for language learners. Enunciate clearly and naturally.",
-  Italian:
-    "Speak in Italian with clear, native Italian pronunciation. Use a calm, measured pace suitable for language learners. Enunciate clearly and naturally.",
-  Portuguese:
-    "Speak in Portuguese with clear, native Portuguese pronunciation. Use a calm, measured pace suitable for language learners. Enunciate clearly and naturally.",
-};
+/** Per-block character limit; both OpenAI TTS and most local servers
+ *  prefer payloads under ~4000 chars. */
+const MAX_TTS_CHARS = 3500;
 
-// GET - Get audio URL for existing audio
+const useLocalStorage = !process.env.R2_ACCOUNT_ID;
+
+async function storeArticleAudio(
+  articleId: string,
+  buffer: Buffer,
+): Promise<{ key: string; publicUrl: string }> {
+  const hash = createHash("md5").update(buffer).digest("hex").slice(0, 8);
+  if (useLocalStorage) {
+    const dir = path.join(process.cwd(), ".audio-cache", "article-audio");
+    await fs.mkdir(dir, { recursive: true });
+    const filename = `${articleId}-${hash}.mp3`;
+    await fs.writeFile(path.join(dir, filename), buffer);
+    return {
+      key: `local/article-audio/${filename}`,
+      publicUrl: getPublicUrl(`local/article-audio/${filename}`),
+    };
+  }
+  const key = `article-audio/${articleId}-${hash}.mp3`;
+  await uploadAudio(key, buffer);
+  return { key, publicUrl: getPublicUrl(key) };
+}
+
+// GET — Get audio URL for existing audio
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -58,7 +67,32 @@ export async function GET(
   return NextResponse.json({ audioUrl: getPublicUrl(row.audioUrl) });
 }
 
-// Background audio generation (fire-and-forget)
+/** Split a paragraph into <= MAX_TTS_CHARS pieces, splitting on sentence
+ *  boundaries when possible. */
+function splitForTts(text: string): string[] {
+  if (text.length <= MAX_TTS_CHARS) return [text];
+  const pieces: string[] = [];
+  const sentences = text.split(/(?<=[.!?。！？])\s+/);
+  let buf = "";
+  for (const s of sentences) {
+    if ((buf + s).length > MAX_TTS_CHARS) {
+      if (buf) pieces.push(buf);
+      buf = s;
+    } else {
+      buf = buf ? buf + " " + s : s;
+    }
+  }
+  if (buf) pieces.push(buf);
+  // Hard-split any over-long single sentence.
+  return pieces.flatMap((p) =>
+    p.length <= MAX_TTS_CHARS
+      ? [p]
+      : Array.from({ length: Math.ceil(p.length / MAX_TTS_CHARS) }, (_, i) =>
+          p.slice(i * MAX_TTS_CHARS, (i + 1) * MAX_TTS_CHARS),
+        ),
+  );
+}
+
 async function generateAudioInBackground(
   articleId: string,
   translatedContent: string,
@@ -77,87 +111,61 @@ async function generateAudioInBackground(
       return;
     }
 
-    // Combine translated text (OpenAI TTS limit is 4096 chars)
-    const translatedText = blocks
-      .map((block) => block.translated)
-      .join("\n\n")
-      .slice(0, 4096);
-
-    // Generate audio with OpenAI TTS
-    const ttsInstructions =
-      TTS_INSTRUCTIONS[targetLanguage] ||
-      `Speak in ${targetLanguage} with clear, native pronunciation. Use a calm, measured pace suitable for language learners.`;
-
-    const mp3 = await openai.audio.speech.create({
-      model: "gpt-4o-mini-tts",
-      voice: "coral",
-      input: translatedText,
-      instructions: ttsInstructions,
-    });
-
-    const buffer = Buffer.from(await mp3.arrayBuffer());
-
-    // Upload to R2
-    const audioKey = `article-audio/${articleId}.mp3`;
-    await uploadAudio(audioKey, buffer);
-
-    // Transcribe with Whisper for word-level timestamps
-    let audioTimestamps: string | null = null;
-    try {
-      const audioFile = await toFile(buffer, "audio.mp3", {
-        type: "audio/mpeg",
-      });
-      const transcription = await openai.audio.transcriptions.create({
-        file: audioFile,
-        model: "whisper-1",
-        response_format: "verbose_json",
-        timestamp_granularities: ["word"],
-      });
-
-      const verboseResponse = transcription as {
-        words?: Array<{ word: string; start: number; end: number }>;
-      };
-
-      if (verboseResponse.words && verboseResponse.words.length > 0) {
-        const whisperWords: WhisperWord[] = verboseResponse.words.map(
-          (w) => ({
-            word: w.word,
-            start: w.start,
-            end: w.end,
-          }),
-        );
-
-        const aligned = alignWordsToOriginal(translatedText, whisperWords);
-        audioTimestamps = JSON.stringify(aligned);
-        console.log(
-          `[Audio] Generated ${aligned.length} word timestamps for article ${articleId}`,
-        );
-      }
-    } catch (transcriptionError) {
-      console.error(
-        "[Audio] Whisper transcription failed:",
-        transcriptionError,
-      );
+    // Build full text and chunk it. Earlier code sliced to 4096 chars
+    // and silently dropped the rest — long articles lost most audio.
+    const fullText = blocks
+      .map((b) => b.translated)
+      .filter((t) => t && t.trim().length > 0)
+      .join("\n\n");
+    if (!fullText.trim()) {
+      await db
+        .update(article)
+        .set({ audioUrl: null })
+        .where(eq(article.id, articleId));
+      return;
     }
 
-    // Estimate duration (~150 words per minute)
-    const wordCount = translatedText.split(/\s+/).length;
+    const chunks = splitForTts(fullText);
+    console.log(
+      `[Audio] ${articleId}: ${chunks.length} chunks via ${getTTSClient().model}`,
+    );
+
+    const instructions = `Speak in ${targetLanguage} with clear native pronunciation. Calm, measured pace for language learners.`;
+
+    // Bounded concurrency: GPU TTS likes parallel, OpenAI rate-limits.
+    const concurrency = process.env.LOCAL_TTS_URL ? 4 : 1;
+    const buffers: Buffer[] = new Array(chunks.length);
+    let cursor = 0;
+    async function worker() {
+      while (cursor < chunks.length) {
+        const i = cursor++;
+        buffers[i] = await generateAudioBuffer(chunks[i], instructions, targetLanguage);
+      }
+    }
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, chunks.length) }, worker),
+    );
+
+    // MP3 frames can be concatenated as bytes (each frame is self-contained).
+    const combined = Buffer.concat(buffers);
+    const { key } = await storeArticleAudio(articleId, combined);
+
+    const wordCount = fullText.split(/\s+/).length;
     const estimatedDuration = Math.round((wordCount / 150) * 60);
 
-    // Update article with audio info
     await db
       .update(article)
       .set({
-        audioUrl: audioKey,
+        audioUrl: key,
         audioDurationSeconds: estimatedDuration,
-        audioTimestamps,
+        // Stash the profile tag so we can invalidate on model/voice change.
+        audioTimestamps: JSON.stringify({ profile: ttsProfileTag() }),
       })
       .where(eq(article.id, articleId));
 
-    console.log(`[Audio] Audio generation complete for article ${articleId}`);
+    console.log(`[Audio] Done for ${articleId} (${combined.length} bytes)`);
   } catch (error) {
-    console.error(`[Audio] Audio generation failed for ${articleId}:`, error);
-    // Reset audioUrl so user can retry
+    console.error(`[Audio] Generation failed for ${articleId}:`, error);
     await db
       .update(article)
       .set({ audioUrl: null })
@@ -165,7 +173,7 @@ async function generateAudioInBackground(
   }
 }
 
-// POST - Generate audio for article (returns immediately, runs in background)
+// POST — Generate audio (returns immediately, runs in background)
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -183,16 +191,25 @@ export async function POST(
     return NextResponse.json({ error: "Article not found" }, { status: 404 });
   }
 
-  // If audio already exists (and not in generating state), return existing URL
-  if (row.audioUrl && row.audioUrl !== "generating") {
+  // Check if existing audio was generated with the current TTS profile.
+  const currentProfile = ttsProfileTag();
+  let storedProfile: string | null = null;
+  if (row.audioTimestamps) {
+    try {
+      const parsed = JSON.parse(row.audioTimestamps) as { profile?: string };
+      storedProfile = parsed.profile ?? null;
+    } catch {
+      /* old-format whisper timestamps — treat as profile-less */
+    }
+  }
+  const profileMatches = storedProfile === currentProfile;
+
+  if (row.audioUrl && row.audioUrl !== "generating" && profileMatches) {
     return NextResponse.json({ audioUrl: getPublicUrl(row.audioUrl) });
   }
-
-  // If already generating, just return status
   if (row.audioUrl === "generating") {
     return NextResponse.json({ status: "generating" });
   }
-
   if (!row.translatedContent) {
     return NextResponse.json(
       { error: "Article translation not complete" },
@@ -200,13 +217,11 @@ export async function POST(
     );
   }
 
-  // Mark as generating immediately
   await db
     .update(article)
     .set({ audioUrl: "generating" })
     .where(eq(article.id, id));
 
-  // Fire-and-forget background generation
   generateAudioInBackground(
     id,
     row.translatedContent,

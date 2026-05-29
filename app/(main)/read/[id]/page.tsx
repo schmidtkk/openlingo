@@ -43,6 +43,9 @@ const langCodeMap: Record<string, string> = {
   english: "en",
 };
 
+const STALE_FETCHING_MS = 2 * 60 * 1000; // 2 minutes
+const STALE_TRANSLATING_MS = 5 * 60 * 1000; // 5 minutes
+
 export default function ArticleReaderPage({
   params,
 }: {
@@ -61,22 +64,25 @@ export default function ArticleReaderPage({
   const [showReadingMode, setShowReadingMode] = useState(false);
   const [currentAudioTime, setCurrentAudioTime] = useState(0);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
-  // Staleness detection: if an article has been "fetching" or "translating"
-  // for too long, the background process likely died (server restart, crash, etc.)
-  const STALE_FETCHING_MS = 2 * 60 * 1000; // 2 minutes
-  const STALE_TRANSLATING_MS = 5 * 60 * 1000; // 5 minutes
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const isStale = useMemo(() => {
     if (!article) return false;
     if (article.status !== "fetching" && article.status !== "translating")
       return false;
-    const age = Date.now() - new Date(article.createdAt).getTime();
+    const age = nowMs - new Date(article.createdAt).getTime();
     if (article.status === "fetching") return age > STALE_FETCHING_MS;
     return age > STALE_TRANSLATING_MS;
-  }, [article?.status, article?.createdAt]);
+  }, [article, nowMs]);
 
   const hasFailed = article?.status === "failed" || isStale;
+  const isAudioGenerating = generatingAudio || article?.audioUrl === "generating";
+  const articleStatus = article?.status;
 
   // Fetch article
   useEffect(() => {
@@ -94,13 +100,6 @@ export default function ArticleReaderPage({
         setLoading(false);
       });
   }, [id]);
-
-  // Detect "generating" state from article data
-  useEffect(() => {
-    if (article?.audioUrl === "generating") {
-      setGeneratingAudio(true);
-    }
-  }, [article?.audioUrl]);
 
   // Fetch audio URL if article has real audio (not "generating")
   useEffect(() => {
@@ -130,7 +129,7 @@ export default function ArticleReaderPage({
 
   // Poll while audio is generating
   useEffect(() => {
-    if (!generatingAudio) return;
+    if (!isAudioGenerating) return;
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/articles/${id}`);
@@ -151,7 +150,7 @@ export default function ArticleReaderPage({
       }
     }, 2000);
     return () => clearInterval(interval);
-  }, [id, generatingAudio]);
+  }, [id, isAudioGenerating]);
 
   const handleGenerateAudio = useCallback(async () => {
     setGeneratingAudio(true);
@@ -170,8 +169,8 @@ export default function ArticleReaderPage({
 
   // Poll for status if in progress (stop if stale)
   useEffect(() => {
-    if (!article) return;
-    if (article.status === "completed" || article.status === "failed") return;
+    if (!articleStatus) return;
+    if (articleStatus === "completed" || articleStatus === "failed") return;
     if (isStale) return;
 
     const interval = setInterval(async () => {
@@ -189,7 +188,7 @@ export default function ArticleReaderPage({
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [id, article?.status, isStale]);
+  }, [id, articleStatus, isStale]);
 
   const handleDelete = async () => {
     if (!confirm("Delete this article?")) return;
@@ -329,7 +328,9 @@ export default function ArticleReaderPage({
         {/* Actions */}
         <div className="flex items-center gap-3">
           {/* Generate Audio button */}
-          {article.status === "completed" && !article.audioUrl && !generatingAudio && (
+          {article.status === "completed" &&
+            !article.audioUrl &&
+            !isAudioGenerating && (
             <button
               type="button"
               onClick={handleGenerateAudio}
@@ -353,7 +354,7 @@ export default function ArticleReaderPage({
           )}
 
           {/* Generating audio indicator */}
-          {generatingAudio && (
+          {isAudioGenerating && (
             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-lingo-blue">
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-lingo-blue/30 border-t-lingo-blue" />
               Generating audio...
@@ -455,6 +456,15 @@ export default function ArticleReaderPage({
           >
             Back to articles
           </button>
+        </div>
+      )}
+
+      {/* Partial failure warning */}
+      {article.status === "completed" && article.errorMessage && (
+        <div className="mb-4 rounded-xl border-2 border-lingo-orange/40 bg-lingo-orange/5 p-3 text-sm text-lingo-orange">
+          <span className="font-bold">Partial translation:</span>{" "}
+          {article.errorMessage} Some paragraphs may be empty. Try regenerating
+          with a different model.
         </div>
       )}
 

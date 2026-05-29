@@ -6,8 +6,7 @@ import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-server";
 import { revalidatePath } from "next/cache";
 import { supportedLanguages } from "@/lib/languages";
-import { getModelsForUser } from "@/lib/ai/models";
-import { DEFAULT_AI_MODEL } from "../constants";
+import { getModelsForUser, getDefaultModel } from "@/lib/ai/models";
 
 export async function getTargetLanguage(userId?: string): Promise<string | null> {
   const uid = userId ?? (await requireSession()).user.id;
@@ -50,7 +49,7 @@ export async function getPreferredModel(userId?: string): Promise<string> {
     .where(eq(userPreferences.userId, uid))
     .limit(1);
 
-  return row?.preferredModel ?? DEFAULT_AI_MODEL;
+  return row?.preferredModel ?? getDefaultModel();
 }
 
 export async function updatePreferredModel(model: string) {

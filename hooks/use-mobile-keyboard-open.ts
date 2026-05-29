@@ -19,10 +19,7 @@ export function useMobileKeyboardOpen() {
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   useEffect(() => {
-    if (!isMobile) {
-      setIsKeyboardOpen(false);
-      return;
-    }
+    if (!isMobile) return;
 
     const viewport = window.visualViewport;
     if (!viewport) {
@@ -71,9 +68,10 @@ export function useMobileKeyboardOpen() {
     window.addEventListener("focusout", handleFocusOut);
     window.addEventListener("orientationchange", handleOrientationChange);
 
-    recompute();
+    const initialFrame = requestAnimationFrame(recompute);
 
     return () => {
+      cancelAnimationFrame(initialFrame);
       viewport.removeEventListener("resize", handleViewportResize);
       window.removeEventListener("focusin", handleFocusIn);
       window.removeEventListener("focusout", handleFocusOut);
@@ -81,5 +79,5 @@ export function useMobileKeyboardOpen() {
     };
   }, [isMobile]);
 
-  return isKeyboardOpen;
+  return isMobile ? isKeyboardOpen : false;
 }

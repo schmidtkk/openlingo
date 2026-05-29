@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useCallback, useRef } from "react";
 import type { Exercise } from "@/lib/content/types";
 import { MultipleChoice } from "@/components/exercises/multiple-choice";
 import { Translation } from "@/components/exercises/translation";
@@ -32,17 +32,12 @@ export function ChatExercise({
   onComplete,
   autoplayAudio = true,
 }: ChatExerciseProps) {
-  const [result, setResult] = useState<{
-    correct: boolean;
-    answer: string;
-  } | null>(null);
   const resultRef = useRef<{ correct: boolean; answer: string } | null>(null);
 
   const handleResult = useCallback(
     (correct: boolean, answer: string) => {
       const r = { correct, answer };
       resultRef.current = r;
-      setResult(r);
     },
     []
   );

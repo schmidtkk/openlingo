@@ -34,6 +34,7 @@ export function WordTooltip({ word, language }: WordTooltipProps) {
   const [data, setData] = useState<WordData | null>(null);
   const [loading, setLoading] = useState(true);
   const [srsStatus, setSrsStatus] = useState<"added" | "failed" | null>(null);
+  const [busy, setBusy] = useState(false);
 
   // Fetch on mount
   useEffect(() => {
@@ -56,15 +57,18 @@ export function WordTooltip({ word, language }: WordTooltipProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-add or mark as failed when data loads
-  useEffect(() => {
-    if (!data?.found || !data.translation) return;
-
-    addOrFailWord(data.word, language, data.translation)
-      .then((status) => setSrsStatus(status))
-      .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+  async function handleAdd() {
+    if (!data?.found || !data.translation || busy) return;
+    setBusy(true);
+    try {
+      const status = await addOrFailWord(data.word, language, data.translation);
+      setSrsStatus(status);
+    } catch {
+      /* keep the picker open so the user can try again */
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -130,7 +134,17 @@ export function WordTooltip({ word, language }: WordTooltipProps) {
         </div>
       )}
 
-      {/* SRS status indicator */}
+      {/* SRS action — explicit, no longer auto-fires */}
+      {data.translation && !srsStatus && (
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={busy}
+          className="w-full rounded-xl border-2 border-lingo-green bg-lingo-green/10 py-2.5 text-sm font-bold text-lingo-green hover:bg-lingo-green/20 disabled:opacity-60"
+        >
+          {busy ? "Saving…" : "+ Add to My Words"}
+        </button>
+      )}
       {srsStatus && (
         <div
           className={`w-full rounded-xl py-2.5 text-center text-sm font-bold ${

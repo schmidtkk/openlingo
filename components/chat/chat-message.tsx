@@ -12,7 +12,6 @@ import { HoverableMarkdown } from "@/components/word/hoverable-markdown";
 interface ChatMessageProps {
   message: UIMessage;
   language: string;
-  isLoading: boolean;
   completedExercises: Record<string, { correct: boolean; answer: string }>;
   onExerciseComplete: (
     toolCallId: string,
@@ -26,7 +25,6 @@ interface ChatMessageProps {
 export const ChatMessage = memo(function ChatMessage({
   message,
   language,
-  isLoading,
   completedExercises,
   onExerciseComplete,
   autoplayAudio = true,
@@ -186,6 +184,30 @@ export const ChatMessage = memo(function ChatMessage({
                     />
                   );
                 }
+              }
+
+              // Internal tools: show only a one-line status pill,
+              // never the raw SQL / memory / params.
+              const INTERNAL_TOOLS = new Set([
+                "srs",
+                "readMemory",
+                "addMemory",
+                "rewriteAllMemory",
+                "addWordsToSrs",
+                "switchLanguage",
+                "getDueCards",
+                "getSrsStats",
+                "getNewCards",
+                "reviewCard",
+              ]);
+              if (INTERNAL_TOOLS.has(toolName)) {
+                return (
+                  <ToolCall
+                    key={key}
+                    toolName={toolName}
+                    state={toolPart.state}
+                  />
+                );
               }
 
               // Other tools: collapsible tool call display

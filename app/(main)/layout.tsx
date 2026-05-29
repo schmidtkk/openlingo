@@ -20,7 +20,10 @@ export default async function MainLayout({
     const headersList = await headers();
     const pathname = headersList.get("x-pathname") || "";
     const redirectParam = pathname ? `?redirect=${encodeURIComponent(pathname)}` : "";
-    redirect(`/sign-in${redirectParam}`);
+    const authPath = process.env.LOCAL_DEV === "true"
+      ? `/api/dev/login?redirect=${encodeURIComponent(pathname || "/chat")}`
+      : `/sign-in${redirectParam}`;
+    redirect(authPath);
   }
 
   let stats = null;

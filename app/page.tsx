@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth-server";
 import { DEFAULT_PATH } from "@/lib/constants";
 import { getGitHubStars } from "@/lib/github";
@@ -6,6 +7,10 @@ import { FeedbackButton } from "@/components/feedback/feedback-button";
 
 export default async function LandingPage() {
   const [session, stars] = await Promise.all([getSession(), getGitHubStars()]);
+
+  if (process.env.LOCAL_DEV === "true" && !session) {
+    redirect(`/api/dev/login?redirect=${DEFAULT_PATH}`);
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-lingo-bg px-4 py-16">

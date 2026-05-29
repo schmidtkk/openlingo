@@ -54,9 +54,11 @@ export function ReadingModeText({
 
   // Close tooltip when audio resumes
   useEffect(() => {
-    if (isPlaying && selectedWord) {
+    if (!isPlaying || !selectedWord) return;
+    const timeoutId = window.setTimeout(() => {
       setSelectedWord(null);
-    }
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [isPlaying, selectedWord]);
 
   // Sentence range for context display

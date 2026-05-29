@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 const TOOL_LABELS: Record<string, string> = {
-  srs: "Running SRS query",
+  srs: "Checking review deck",
   readMemory: "Reading memory",
   addMemory: "Saving to memory",
   rewriteAllMemory: "Rewriting memory",
@@ -13,6 +13,10 @@ const TOOL_LABELS: Record<string, string> = {
   switchLanguage: "Switching language",
   webSearch: "Searching the web",
   readArticle: "Reading article",
+  getDueCards: "Checking due words",
+  getSrsStats: "Checking review stats",
+  getNewCards: "Picking new words",
+  reviewCard: "Updating review",
 };
 
 const STATE_LABELS: Record<string, string> = {

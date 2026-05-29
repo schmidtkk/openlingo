@@ -49,7 +49,18 @@ export function FlashcardReview({
       {/* Flashcard */}
       <div
         onClick={() => !revealed && setRevealed(true)}
-        className={`relative rounded-2xl border-2 border-b-4 p-8 text-center transition-all ${
+        onKeyDown={(e) => {
+          if (revealed) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setRevealed(true);
+          }
+        }}
+        role={revealed ? undefined : "button"}
+        tabIndex={revealed ? -1 : 0}
+        aria-pressed={revealed}
+        aria-label={revealed ? undefined : "Reveal flashcard answer"}
+        className={`relative rounded-2xl border-2 border-b-4 p-8 text-center transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-lingo-blue ${
           !revealed
             ? "border-lingo-border bg-white cursor-pointer hover:bg-lingo-gray/20 active:border-b-2 active:mt-[2px]"
             : "border-lingo-border bg-white"

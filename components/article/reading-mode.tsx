@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { ReadingModeText } from "./reading-mode-text";
 import { findWordAtTime, type WordTimestamp } from "@/lib/audio/align-timestamps";
 
@@ -44,16 +44,11 @@ export function ReadingMode({
   const [hasInitialized, setHasInitialized] = useState(false);
 
   const startingWordIndex = findSentenceStart(timestamps, initialWordIndex);
-  const [currentWordIndex, setCurrentWordIndex] = useState(startingWordIndex);
+  const currentWordIndex = useMemo(() => {
+    if (timestamps.length === 0) return startingWordIndex;
+    return findWordAtTime(timestamps, currentTime);
+  }, [currentTime, startingWordIndex, timestamps]);
   const [wasPlayingBeforeTap, setWasPlayingBeforeTap] = useState(false);
-
-  // Update current word based on audio time
-  useEffect(() => {
-    if (timestamps.length > 0) {
-      const wordIndex = findWordAtTime(timestamps, currentTime);
-      setCurrentWordIndex(wordIndex);
-    }
-  }, [currentTime, timestamps]);
 
   // Audio event handlers
   useEffect(() => {
@@ -112,7 +107,6 @@ export function ReadingMode({
       if (!audio || !timestamps[index]) return;
       audio.currentTime = timestamps[index].start;
       setCurrentTime(timestamps[index].start);
-      setCurrentWordIndex(index);
     },
     [timestamps],
   );

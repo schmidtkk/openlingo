@@ -33,6 +33,7 @@ export default async function ReadPage() {
 
   function isArticleStale(a: { status: string; createdAt: Date }) {
     if (a.status !== "fetching" && a.status !== "translating") return false;
+    // eslint-disable-next-line react-hooks/purity -- Server-rendered stale status intentionally depends on request time.
     const age = Date.now() - a.createdAt.getTime();
     if (a.status === "fetching") return age > STALE_FETCHING_MS;
     return age > STALE_TRANSLATING_MS;

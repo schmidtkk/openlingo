@@ -1,5 +1,5 @@
 import { streamText, convertToModelMessages, stepCountIs } from "ai";
-import { getModel, getModelsForUser, createTools } from "@/lib/ai";
+import { getModel, resolveModelIdForUser, createTools } from "@/lib/ai";
 import { requireSession } from "@/lib/auth-server";
 import { langCodeToName, interpolateTemplate, SRS_REFERENCE } from "@/lib/prompts";
 import { getUserPromptTemplate } from "@/lib/actions/prompts";
@@ -9,19 +9,13 @@ import { EXERCISE_SYNTAX } from "@/lib/content/exercise-syntax";
 import { db } from "@/lib/db";
 import { userMemory } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { DEFAULT_AI_MODEL } from "@/lib/constants";
-
-const DEFAULT_CHAT_MODEL = DEFAULT_AI_MODEL;
 
 export async function POST(req: Request) {
   const session = await requireSession();
   const { messages, language: lang, model: requestedModel } = await req.json();
 
   const language: string = lang || (await getTargetLanguage(session.user.id)) || "en";
-  const userModels = getModelsForUser(session.user.email);
-  const modelId = userModels.some((m) => m.id === requestedModel)
-    ? requestedModel
-    : DEFAULT_CHAT_MODEL;
+  const modelId = resolveModelIdForUser(requestedModel, session.user.email);
   const target_language = langCodeToName[language] || language;
   const tools = createTools(session.user.id, language);
 
@@ -63,7 +57,7 @@ export async function POST(req: Request) {
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
     tools,
-    stopWhen: stepCountIs(7),
+    stopWhen: stepCountIs(5),
   });
 
   return result.toUIMessageStreamResponse();

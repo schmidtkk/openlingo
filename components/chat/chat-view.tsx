@@ -50,6 +50,25 @@ export function ChatView({
   );
   const [chatId] = useState(() => conversationId ?? crypto.randomUUID());
   const convIdRef = useRef<string | null>(conversationId ?? null);
+  const [autoplayPref, setAutoplayPref] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const timeoutId = window.setTimeout(() => {
+      setAutoplayPref(
+        window.localStorage.getItem("openlingo.autoplay") === "1",
+      );
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+  const toggleAutoplay = useCallback(() => {
+    setAutoplayPref((p) => {
+      const next = !p;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("openlingo.autoplay", next ? "1" : "0");
+      }
+      return next;
+    });
+  }, []);
 
   const transport = useMemo(
     () =>
@@ -59,7 +78,7 @@ export function ChatView({
     [effectiveLanguage, model],
   );
 
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, stop, error } = useChat({
     transport,
     id: chatId,
     messages: initialMessages,
@@ -212,17 +231,14 @@ export function ChatView({
               />
             )}
 
-            {messages.map((message, index) => (
+            {messages.map((message) => (
               <ChatMessage
                 key={message.id}
                 message={message}
                 language={effectiveLanguage}
-                isLoading={
-                  status === "streaming" && messages.length - 1 === index
-                }
                 completedExercises={completedExercises}
                 onExerciseComplete={handleExerciseComplete}
-                autoplayAudio={!initialMessageIds.has(message.id)}
+                autoplayAudio={autoplayPref && !initialMessageIds.has(message.id)}
               />
             ))}
 
@@ -277,7 +293,33 @@ export function ChatView({
           isKeyboardOpen ? "pb-2 pt-0.5" : ""
         }`}
       >
-        <div className={`mb-1.5 justify-end ${isKeyboardOpen ? "hidden" : "flex"}`}>
+        {error && (
+          <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border-2 border-lingo-red/30 bg-red-50 px-3 py-2 text-xs text-lingo-red">
+            <span className="truncate">
+              Something went wrong. {error.message?.slice(0, 120) || ""}
+            </span>
+            <button
+              type="button"
+              onClick={() => sendMessage({ text: input.trim() || "Continue." })}
+              className="shrink-0 rounded-md border border-lingo-red px-2 py-0.5 text-[11px] font-bold uppercase text-lingo-red hover:bg-lingo-red/10"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        <div className={`mb-1.5 items-center justify-end gap-2 ${isKeyboardOpen ? "hidden" : "flex"}`}>
+          <button
+            type="button"
+            onClick={toggleAutoplay}
+            title={autoplayPref ? "Autoplay audio: on" : "Autoplay audio: off"}
+            className={`rounded-lg border px-2 py-1 text-xs transition-colors ${
+              autoplayPref
+                ? "border-lingo-green bg-lingo-green/10 text-lingo-green"
+                : "border-lingo-border bg-white text-lingo-text-light hover:text-lingo-text"
+            }`}
+          >
+            {autoplayPref ? "🔊 Auto" : "🔇 Auto"}
+          </button>
           <select
             value={model}
             onChange={(e) => {
@@ -314,9 +356,8 @@ export function ChatView({
           {isLoading ? (
             <button
               type="button"
-              onClick={() => {
-                /* stop not needed for now */
-              }}
+              onClick={() => stop()}
+              aria-label="Stop generating"
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-lingo-text text-white transition-colors hover:bg-lingo-text/80"
             >
               <svg

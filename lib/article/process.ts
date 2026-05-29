@@ -5,7 +5,6 @@ import { fetchArticleHtml } from "./fetch";
 import {
   extractArticleContent,
   smartChunkContent,
-  countWords,
   getSiteConfig,
 } from "./extract";
 import { translateChunk, detectLanguage } from "./translate";
@@ -18,7 +17,7 @@ export async function processTranslation(
   cefrLevel: string,
 ) {
   let paragraphs: string[] = [];
-  let translatedBlocks: TranslationBlock[] = [];
+  const translatedBlocks: TranslationBlock[] = [];
   let title = "Untitled";
 
   const siteConfig = getSiteConfig(sourceUrl);
@@ -100,6 +99,8 @@ export async function processTranslation(
       ? { returnCleanOriginal: true }
       : undefined;
 
+    let failedChunks = 0;
+
     for (let i = 0; i < paragraphs.length; i += MAX_PARALLEL) {
       const wave = paragraphs.slice(i, i + MAX_PARALLEL);
 
@@ -118,18 +119,18 @@ export async function processTranslation(
         const originalChunk = wave[j];
 
         if (result.status === "fulfilled") {
-          const block = result.value;
-          if (block.translated && block.translated.trim().length > 0) {
-            translatedBlocks.push(block);
-          }
+          translatedBlocks.push(result.value);
         } else {
           console.error(
             `[${articleId}] Chunk ${i + j + 1} failed:`,
             result.reason,
           );
+          failedChunks++;
+          // Push a placeholder marked as failed so the UI can render it
+          // distinctly and the user knows what went wrong.
           translatedBlocks.push({
             original: originalChunk,
-            translated: originalChunk,
+            translated: "",
           });
         }
       }
@@ -145,8 +146,26 @@ export async function processTranslation(
         .where(eq(article.id, articleId));
 
       console.log(
-        `[${articleId}] Progress: ${progress}/${paragraphs.length}`,
+        `[${articleId}] Progress: ${progress}/${paragraphs.length} (failed: ${failedChunks})`,
       );
+    }
+
+    // If more than half the chunks failed, treat the whole article as
+    // failed so the user retries rather than reading a half-empty page.
+    const failureRate =
+      paragraphs.length > 0 ? failedChunks / paragraphs.length : 0;
+    if (failureRate > 0.5) {
+      await db
+        .update(article)
+        .set({
+          translatedContent: JSON.stringify(translatedBlocks),
+          status: "failed",
+          errorMessage: `Translation failed for ${failedChunks}/${paragraphs.length} paragraphs. The LLM may not support structured output well — try a different model.`,
+          translationProgress: translatedBlocks.length,
+        })
+        .where(eq(article.id, articleId));
+      console.log(`[${articleId}] Marked failed (${failedChunks}/${paragraphs.length} chunks failed)`);
+      return;
     }
 
     // Calculate word count and mark as completed
@@ -159,13 +178,19 @@ export async function processTranslation(
       .update(article)
       .set({
         translatedContent: JSON.stringify(translatedBlocks),
+        // Use "completed" even for partial successes so the UI shows the
+        // article; surface partial failures via errorMessage.
         status: "completed",
         wordCount,
+        errorMessage:
+          failedChunks > 0
+            ? `${failedChunks}/${paragraphs.length} paragraphs failed to translate.`
+            : null,
         translationProgress: paragraphs.length,
       })
       .where(eq(article.id, articleId));
 
-    console.log(`[${articleId}] Translation completed! ${wordCount} words`);
+    console.log(`[${articleId}] Translation done. ${wordCount} words, ${failedChunks} failures`);
   } catch (error) {
     console.error(`[${articleId}] Translation error:`, error);
 

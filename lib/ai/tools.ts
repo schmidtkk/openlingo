@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { db, client } from "@/lib/db";
+import { db } from "@/lib/db";
 import {
   userMemory,
   unit,
@@ -11,15 +11,11 @@ import {
   srsCard,
   article,
 } from "@/lib/db/schema";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { parseExercise } from "@/lib/content/parser";
 import { langCodeToName } from "@/lib/prompts";
 import { supportedLanguages } from "@/lib/languages";
 import { parseUnitMarkdown } from "@/lib/content/loader";
-
-const ALLOWED_TABLE = /\bsrs_card\b/i;
-const FORBIDDEN_TABLES =
-  /\b(user|session|account|verification|user_stats|user_preferences|user_course_enrollment|lesson_completion|exercise_attempt|daily_activity|dictionary_word|word_cache|user_memory|course|unit|audio_cache|chat_conversation|article)\b/i;
 
 export function createTools(userId: string, language?: string) {
   return {
@@ -89,31 +85,180 @@ export function createTools(userId: string, language?: string) {
       },
     }),
 
-    srs: tool({
+    getSrsStats: tool({
       description:
-        "Execute SQL on the srs_card table. $1 is always bound to the current user's ID. Returns rows for SELECT, or affected row count for mutations. Only the srs_card table is accessible.",
+        "Return counts of the user's SRS cards: total, due now, new (not yet studied), and learning vs review status. Optionally filter by language.",
       inputSchema: z.object({
-        sql: z.string().describe("SQL query — use $1 for user_id"),
+        language: z
+          .string()
+          .optional()
+          .describe("Optional language code filter (e.g. 'de', 'fr')."),
       }),
-      execute: async ({ sql: query }) => {
-        if (!ALLOWED_TABLE.test(query)) {
-          return { error: "Query must reference the srs_card table." };
-        }
-        if (FORBIDDEN_TABLES.test(query)) {
-          return {
-            error: "Access denied: only the srs_card table is accessible.",
-          };
-        }
+      execute: async ({ language: lang }) => {
+        const conds = [eq(srsCard.userId, userId)];
+        if (lang) conds.push(eq(srsCard.language, lang));
+        const baseWhere = and(...conds);
+        const now = new Date();
 
+        const [total] = await db
+          .select({ c: sql<number>`count(*)::int` })
+          .from(srsCard)
+          .where(baseWhere);
+        const [due] = await db
+          .select({ c: sql<number>`count(*)::int` })
+          .from(srsCard)
+          .where(and(baseWhere, lte(srsCard.nextReviewAt, now)));
+        const [newCount] = await db
+          .select({ c: sql<number>`count(*)::int` })
+          .from(srsCard)
+          .where(and(baseWhere, eq(srsCard.status, "new")));
+        const [learning] = await db
+          .select({ c: sql<number>`count(*)::int` })
+          .from(srsCard)
+          .where(and(baseWhere, eq(srsCard.status, "learning")));
+        const [review] = await db
+          .select({ c: sql<number>`count(*)::int` })
+          .from(srsCard)
+          .where(and(baseWhere, eq(srsCard.status, "review")));
+
+        return {
+          language: lang ?? "all",
+          total: total?.c ?? 0,
+          dueNow: due?.c ?? 0,
+          new: newCount?.c ?? 0,
+          learning: learning?.c ?? 0,
+          review: review?.c ?? 0,
+        };
+      },
+    }),
+
+    getDueCards: tool({
+      description:
+        "Return up to `limit` SRS cards that are due for review (nextReviewAt <= now). Optionally filter by language. Use this before presenting a review exercise.",
+      inputSchema: z.object({
+        language: z.string().optional().describe("Optional language code filter."),
+        limit: z.number().int().min(1).max(50).default(20),
+      }),
+      execute: async ({ language: lang, limit }) => {
+        const conds = [
+          eq(srsCard.userId, userId),
+          lte(srsCard.nextReviewAt, new Date()),
+        ];
+        if (lang) conds.push(eq(srsCard.language, lang));
+        const rows = await db
+          .select({
+            word: srsCard.word,
+            translation: srsCard.translation,
+            language: srsCard.language,
+            status: srsCard.status,
+            exampleNative: srsCard.exampleNative,
+            exampleEnglish: srsCard.exampleEnglish,
+            nextReviewAt: srsCard.nextReviewAt,
+          })
+          .from(srsCard)
+          .where(and(...conds))
+          .orderBy(asc(srsCard.nextReviewAt))
+          .limit(limit);
+        return { count: rows.length, cards: rows };
+      },
+    }),
+
+    getNewCards: tool({
+      description:
+        "Return up to `limit` SRS cards that the user has not yet started studying (status='new'). Use before introducing fresh vocabulary.",
+      inputSchema: z.object({
+        language: z.string().describe("Language code (required)."),
+        limit: z.number().int().min(1).max(50).default(20),
+      }),
+      execute: async ({ language: lang, limit }) => {
+        const rows = await db
+          .select({
+            word: srsCard.word,
+            translation: srsCard.translation,
+            cefrLevel: srsCard.cefrLevel,
+            pos: srsCard.pos,
+            gender: srsCard.gender,
+            exampleNative: srsCard.exampleNative,
+            exampleEnglish: srsCard.exampleEnglish,
+          })
+          .from(srsCard)
+          .where(
+            and(
+              eq(srsCard.userId, userId),
+              eq(srsCard.language, lang),
+              eq(srsCard.status, "new"),
+            ),
+          )
+          .orderBy(desc(srsCard.createdAt))
+          .limit(limit);
+        return { count: rows.length, cards: rows };
+      },
+    }),
+
+    reviewCard: tool({
+      description:
+        "Record a review of one SRS card. quality: 0=Again (forgot), 3=Hard, 4=Good, 5=Easy. Updates the card's schedule via SM-2. Only this user's card is affected.",
+      inputSchema: z.object({
+        word: z.string(),
+        language: z.string(),
+        quality: z.union([
+          z.literal(0),
+          z.literal(1),
+          z.literal(2),
+          z.literal(3),
+          z.literal(4),
+          z.literal(5),
+        ]),
+      }),
+      execute: async ({ word, language: lang, quality }) => {
         try {
-          const rows = await client.unsafe(query, [userId]);
-          const isSelect = /^\s*select/i.test(query);
-          if (isSelect) {
-            return { rows: Array.from(rows), count: rows.length };
-          }
-          return { affected: rows.count ?? rows.length };
+          // reviewCardAction uses requireSession; we bypass by inlining the
+          // same scheduling logic and binding userId.
+          const { calculateNextReview } = await import("@/lib/srs");
+          const normalizedWord = word.toLowerCase();
+          const [card] = await db
+            .select()
+            .from(srsCard)
+            .where(
+              and(
+                eq(srsCard.word, normalizedWord),
+                eq(srsCard.language, lang),
+                eq(srsCard.userId, userId),
+              ),
+            );
+          if (!card) return { success: false, error: "Card not found" };
+
+          const result = calculateNextReview(
+            {
+              easeFactor: card.easeFactor,
+              interval: card.interval,
+              repetitions: card.repetitions,
+              status: (card.status as "new" | "learning" | "review") ?? "learning",
+            },
+            quality,
+          );
+
+          await db
+            .update(srsCard)
+            .set({
+              easeFactor: result.easeFactor,
+              interval: result.interval,
+              repetitions: result.repetitions,
+              status: result.status,
+              nextReviewAt: result.nextReviewAt,
+              lastReviewedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(srsCard.word, normalizedWord),
+                eq(srsCard.language, lang),
+                eq(srsCard.userId, userId),
+              ),
+            );
+
+          return { success: true, status: result.status, nextReviewAt: result.nextReviewAt };
         } catch (e) {
-          return { error: (e as Error).message };
+          return { success: false, error: (e as Error).message };
         }
       },
     }),

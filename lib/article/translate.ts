@@ -1,30 +1,20 @@
-import { GoogleGenAI } from "@google/genai";
+import { generateObject, generateText } from "ai";
+import { z } from "zod";
+import { getModel, getDefaultModel } from "@/lib/ai/models";
 import { getCefrGuidelines } from "./cefr-guidelines";
 import type { TranslationBlock } from "./types";
 
-let geminiClient: GoogleGenAI | null = null;
-function getGemini() {
-  if (!geminiClient && process.env.GOOGLE_AI_API_KEY) {
-    geminiClient = new GoogleGenAI({ apiKey: process.env.GOOGLE_AI_API_KEY });
-  }
-  return geminiClient;
+function model() {
+  return getModel(getDefaultModel());
 }
 
 export async function detectLanguage(text: string): Promise<string> {
-  const gemini = getGemini();
-  if (!gemini) return "Unknown";
-
   const sample = text.slice(0, 500);
   const prompt = `Detect the language of the following text. Return ONLY the language name in English (e.g., "German", "French", "Spanish"). No explanation, just the language name.\n\nText:\n${sample}`;
 
   try {
-    const response = await gemini.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: { thinkingConfig: { thinkingBudget: 0 } },
-    });
-
-    const detected = response.text?.trim();
+    const { text: out } = await generateText({ model: model(), prompt });
+    const detected = out?.trim();
     if (detected) {
       const normalized = detected.replace(/[^a-zA-Z]/g, "");
       return (
@@ -32,11 +22,17 @@ export async function detectLanguage(text: string): Promise<string> {
       );
     }
   } catch (error) {
-    console.error("Language detection error:", error);
+    console.error("[article.detectLanguage] failed:", error);
   }
 
   return "Unknown";
 }
+
+const translationSchema = z.object({
+  original: z.string(),
+  translated: z.string(),
+  bridge: z.string().optional(),
+});
 
 export async function translateChunk(
   text: string,
@@ -44,14 +40,11 @@ export async function translateChunk(
   cefrLevel: string,
   options?: { returnCleanOriginal?: boolean },
 ): Promise<TranslationBlock> {
-  const gemini = getGemini();
-  if (!gemini) return { original: text, translated: text };
-
   const levelGuidelines = getCefrGuidelines(targetLanguage, cefrLevel);
   const returnCleanOriginal = options?.returnCleanOriginal ?? false;
 
   const outputInstructions = returnCleanOriginal
-    ? `Return JSON format:
+    ? `Return JSON:
 {
   "original": "the CLEAN extracted article text in the SOURCE language (no HTML, no garbage)",
   "translated": "the complete adapted ${targetLanguage} text at ${cefrLevel} level",
@@ -61,7 +54,7 @@ export async function translateChunk(
 IMPORTANT:
 - The "original" field must contain the clean, readable source article text.
 - The "bridge" field must have the SAME NUMBER OF SENTENCES as "translated", in the same order.`
-    : `Return JSON format:
+    : `Return JSON:
 {
   "original": "the source text you received (preserve it exactly)",
   "translated": "the complete adapted ${targetLanguage} text at ${cefrLevel} level",
@@ -89,7 +82,7 @@ From either format, extract ONLY the main article content.
 INCLUDE: News paragraphs, quotes, factual information, analysis
 EXCLUDE: HTML tags, subscription prompts, navigation, cookie notices, ads, "Read also" links
 
-If the input contains ONLY non-article content, return: {"original": "", "translated": ""}
+If the input contains ONLY non-article content, return {"original": "", "translated": ""}.
 
 ---
 
@@ -108,37 +101,36 @@ ${outputInstructions}
 INPUT:
 ${text}`;
 
-  try {
-    const response = await gemini.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: { responseMimeType: "application/json" },
-    });
+  // Up to 2 attempts: providers occasionally return malformed JSON for
+  // structured output on first try.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { object } = await generateObject({
+        model: model(),
+        schema: translationSchema,
+        prompt,
+      });
 
-    const content = response.text;
-    if (content) {
-      try {
-        const parsed = JSON.parse(content);
-        if (parsed.translated) {
-          const originalText =
-            returnCleanOriginal &&
-            parsed.original &&
-            parsed.original.length > 50
-              ? parsed.original
-              : text;
-          return {
-            original: originalText,
-            translated: parsed.translated,
-            bridge: parsed.bridge || undefined,
-          };
-        }
-      } catch {
-        console.error("Failed to parse AI response as JSON");
+      if (object.translated && object.translated.trim().length > 0) {
+        const originalText =
+          returnCleanOriginal && object.original && object.original.length > 50
+            ? object.original
+            : text;
+        return {
+          original: originalText,
+          translated: object.translated,
+          bridge: object.bridge || undefined,
+        };
       }
+    } catch (error) {
+      console.error(
+        `[article.translateChunk] attempt ${attempt + 1} failed:`,
+        error,
+      );
     }
-  } catch (error) {
-    console.error("Gemini translation error:", error);
   }
 
-  return { original: text, translated: text };
+  // Throw so the caller can count this as a real failure instead of
+  // silently storing untranslated text as a "translation".
+  throw new Error("Translation failed after retries");
 }

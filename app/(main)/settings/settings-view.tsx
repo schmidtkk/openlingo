@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { PromptEditor } from "./prompt-editor";
 import { MemoryEditor } from "./memory-editor";
+import { VoiceSelector } from "@/components/tts/voice-selector";
 import type { PromptWithOverride } from "@/lib/actions/prompts";
 import { updateTargetLanguage } from "@/lib/actions/preferences";
 import { updateNativeLanguage } from "@/lib/actions/profile";
@@ -79,6 +80,7 @@ export function SettingsView({
             ))}
           </select>
         </div>
+        <VoiceSelector />
       </div>
 
       <div className="space-y-4">

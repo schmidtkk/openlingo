@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { srsCard } from "@/lib/db/schema";
-import { and, eq, lte, gt, count, sql, asc, isNotNull, inArray } from "drizzle-orm";
+import { and, eq, lte, gt, count, asc, isNotNull, inArray } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-server";
 import { calculateNextReview, type Quality, type CardStatus } from "@/lib/srs";
 import type { Exercise } from "@/lib/content/types";

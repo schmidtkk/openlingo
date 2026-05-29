@@ -15,11 +15,7 @@ import fs from "fs";
 import path from "path";
 import { generateText } from "ai";
 import { getModel } from "../lib/ai/models";
-import {
-  getDefaultTemplate,
-  interpolateTemplate,
-  langCodeToName,
-} from "../lib/prompts";
+import { interpolateTemplate } from "../lib/prompts";
 import { EXERCISE_SYNTAX } from "../lib/content/exercise-syntax";
 
 // ---------------------------------------------------------------------------

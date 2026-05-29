@@ -102,7 +102,7 @@ async function main() {
   console.log(`Found ${pairs.length} unique audio items to generate.`);
 
   let generated = 0;
-  let skipped = 0;
+  const skipped = 0;
 
   for (const { text, language } of pairs) {
     try {

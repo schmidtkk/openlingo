@@ -74,15 +74,6 @@ function normalizeWithMapping(s: string): NormalizedMapping {
   return { normalized, origIndices };
 }
 
-function normalize(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/ß/g, "ss")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[.,;:!?¿¡]/g, "");
-}
-
 // ---------------------------------------------------------------------------
 // Levenshtein with backtrace
 // ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { parseUnitMarkdown } from "./unit-parser";
 import { parseCourseMarkdown } from "./course-parser";
-import type { ParsedUnit, ParsedCourse, UnitLesson } from "./types";
+import type { ParsedUnit, UnitLesson } from "./types";
 
 export { parseUnitMarkdown } from "./unit-parser";
 export { parseCourseMarkdown } from "./course-parser";

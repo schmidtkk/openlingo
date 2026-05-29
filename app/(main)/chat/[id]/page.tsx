@@ -3,7 +3,7 @@ import { getConversation } from "@/lib/actions/chat";
 import { ChatView } from "@/components/chat/chat-view";
 import { getPreferredModel } from "@/lib/actions/preferences";
 import { requireSession } from "@/lib/auth-server";
-import { getModelsForUser } from "@/lib/ai/models";
+import { getModelsForUser, resolveModelIdForUser } from "@/lib/ai/models";
 import type { UIMessage } from "@ai-sdk/react";
 
 
@@ -19,8 +19,12 @@ export default async function ChatConversationPage({
   ]);
   if (!conv) notFound();
 
-  const preferredModel = await getPreferredModel(session.user.id);
+  const storedPreferredModel = await getPreferredModel(session.user.id);
   const availableModels = getModelsForUser(session.user.email);
+  const preferredModel = resolveModelIdForUser(
+    storedPreferredModel,
+    session.user.email,
+  );
 
   return (
     <ChatView

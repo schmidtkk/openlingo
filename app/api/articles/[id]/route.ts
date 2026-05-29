@@ -31,7 +31,7 @@ export async function DELETE(
   const session = await requireSession();
   const { id } = await params;
 
-  const result = await db
+  await db
     .delete(article)
     .where(and(eq(article.id, id), eq(article.userId, session.user.id)));
 

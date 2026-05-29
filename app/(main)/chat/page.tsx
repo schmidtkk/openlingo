@@ -4,7 +4,7 @@ import {
   getTargetLanguage,
   getPreferredModel,
 } from "@/lib/actions/preferences";
-import { getModelsForUser } from "@/lib/ai/models";
+import { getModelsForUser, resolveModelIdForUser } from "@/lib/ai/models";
 
 
 export default async function ChatPage({
@@ -13,13 +13,17 @@ export default async function ChatPage({
   searchParams: Promise<{ prompt?: string }>;
 }) {
   const session = await requireSession();
-  const [language, preferredModel, params] = await Promise.all([
+  const [language, storedPreferredModel, params] = await Promise.all([
     getTargetLanguage(session.user.id),
     getPreferredModel(session.user.id),
     searchParams,
   ]);
 
   const availableModels = getModelsForUser(session.user.email);
+  const preferredModel = resolveModelIdForUser(
+    storedPreferredModel,
+    session.user.email,
+  );
 
   return (
     <ChatView
